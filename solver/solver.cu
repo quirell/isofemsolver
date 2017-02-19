@@ -60,14 +60,14 @@ const struct Properties
 	int beforeLastLevelNodes;
 	int lastLevelStartIdx;
 	int beforeLastLevelStartIdx;
-
+	int rightCount;
 	TreeLevel getTreeLevel(int level)
 	{
 		return TreeLevel(0, 0);
 	}
 };
 
-Properties getProperities(int leftCount)
+Properties getProperities(int leftCount,int rightCount)
 {
 	Properties p;
 	p.leftCount = leftCount;
@@ -81,6 +81,7 @@ Properties getProperities(int leftCount)
 	p.lastLevelNodes = p.bottomNodes - p.beforeLastLevelNodes;
 	p.lastLevelStartIdx = p.heapNodes - p.lastLevelNodes;
 	p.beforeLastLevelStartIdx = p.remainingNodes - p.lastLevelNodes; //account for idx value, undefined when beforeLastLevelNodes is = 0
+	p.rightCount = rightCount;
 	return p;
 }
 
@@ -107,7 +108,10 @@ void run(Node* nodes, Properties props, float* leftSize)
 	}
 }
 
-
+ __device__ __inline__ int rXY(int x,int y)
+{
+	return x*dProps.rightCount + y;
+}
 __global__ void backwardSubstitutionRight(Node * nodes,int startIdx,int nodesCount,int start,int elim,int cols)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -122,7 +126,7 @@ __global__ void backwardSubstitutionRight(Node * nodes,int startIdx,int nodesCou
 		{
 			for (int col = row + 1; col < 6;col++)
 			{
-				x[row*cols + rcol] -= m[XY(row, col)] * x[col*cols + rcol];
+				x[rXY(row,rcol)] -= m[XY(row, col)] * x[rXY(col,rcol)];
 			}
 		}
 	}
@@ -143,7 +147,7 @@ __global__ void forwardEliminationLeft(Node* nodes, int startIdx, int nodesCount
 		}
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
-			for (int col = row+1; col < 6; col++)//from elem on diagonal
+			for (int col = row+1; col < 6; col++)
 			{
 				m[XY(rowBelow,col)] -= m[XY(rowBelow,row)] * m[XY(row,col)]; 
 			}
@@ -163,13 +167,13 @@ __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCoun
 	{
 		for (int col = 0; col < cols; col++)
 		{
-			x[row*cols + col] /= m[XY(row, row)];
+			x[rXY(row,col)] /= m[XY(row, row)];
 		}
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
 			for (int col = 0; col < cols; col++)
 			{
-				x[rowBelow*cols+col] -= m[XY(rowBelow, row)] * x[row*cols+col];
+				x[rXY(rowBelow,col)] -= m[XY(rowBelow, row)] * x[rXY(row,col)];
 			}
 		}
 	}
@@ -185,6 +189,8 @@ __global__ void assignTestRightSize(Node* node, float* x)
 
 void testGaussianElimination()
 {
+	Properties props = getProperities(1, 1);
+	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	Node node;
 	float m[] = {
 		1, 1, -2, 1, 3, -1,
@@ -199,8 +205,8 @@ void testGaussianElimination()
 	printNode(node);
 	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
 	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
-	float x2[6] = {4,20,-15,-3,16,-27};
-	float x[6] = {8,40,-30,-6,32,-54};
+	float x[6] = {4,20,-15,-3,16,-27};
+	float x2[6] = {8,40,-30,-6,32,-54};
 	float* dX;
 	ERRCHECK(cudaMalloc(&dX, sizeof(float)*6));
 	ERRCHECK(cudaMemcpy(dX, &x, sizeof(float)*6, cudaMemcpyHostToDevice));
@@ -386,7 +392,8 @@ int main()
 	clock_t start, end;
 	//	int leftCount = (3*4+2)*10e5;
 	int leftCount = 3 * 3 + 2;
-	Properties props = getProperities(leftCount);
+	int rightCount = 1;
+	Properties props = getProperities(leftCount,rightCount);
 	ERRCHECK(cudaMemcpyToSymbol(dProps,&props,sizeof(Properties)));
 
 	float* leftSide = new float[props.leftSize];
