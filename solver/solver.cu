@@ -160,13 +160,13 @@ __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCoun
 	{
 		for (int col = 0; col < cols; col++)
 		{
-			x[row*cols+col] /= m[row*cols+row];
+			x[row*cols + col] /= m[XY(row, row)];
 		}
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
 			for (int col = 0; col < cols; col++)
 			{
-				x[rowBelow*cols+col] -= m[rowBelow*cols+row] * x[row*cols+col];
+				x[rowBelow*cols+col] -= m[XY(rowBelow, row)] * x[row*cols+col];
 			}
 		}
 	}
