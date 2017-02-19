@@ -116,11 +116,14 @@ __global__ void backwardSubstitutionRight(Node * nodes,int startIdx,int nodesCou
 	int nodeIdx = startIdx + idx;
 	float* m = nodes[nodeIdx].m;
 	float* x = nodes[nodeIdx].x;
-	for (int col = 0; col < cols;col++) //można to policzyć tylko raz i potem odjąć dla każdej prawej strony 1 liczbę, trzeba potem spróbować
+	for (int rcol = 0; rcol < cols;rcol++) 
 	{
-		for (int row = elim; row >= 0;row--)
+		for (int row = elim; row >= 0;row--)//max elim == 4,5th is already done
 		{
-			//for(int lcol)
+			for (int col = row + 1; col < 6;col++)
+			{
+				x[row*cols + rcol] -= m[XY(row, col)] * x[col*cols + rcol];
+			}
 		}
 	}
 }
@@ -140,7 +143,7 @@ __global__ void forwardEliminationLeft(Node* nodes, int startIdx, int nodesCount
 		}
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
-			for (int col = rowBelow; col < 6; col++)//from elem on diagonal
+			for (int col = row+1; col < 6; col++)//from elem on diagonal
 			{
 				m[XY(rowBelow,col)] -= m[XY(rowBelow,row)] * m[XY(row,col)]; 
 			}
@@ -180,7 +183,7 @@ __global__ void assignTestRightSize(Node* node, float* x)
 	node->x = x;
 }
 
-void testForwardElimination()
+void testGaussianElimination()
 {
 	Node node;
 	float m[] = {
@@ -196,7 +199,8 @@ void testForwardElimination()
 	printNode(node);
 	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
 	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
-	float x[6] = {4,20,-15,-3,16,-27};
+	float x2[6] = {4,20,-15,-3,16,-27};
+	float x[6] = {8,40,-30,-6,32,-54};
 	float* dX;
 	ERRCHECK(cudaMalloc(&dX, sizeof(float)*6));
 	ERRCHECK(cudaMemcpy(dX, &x, sizeof(float)*6, cudaMemcpyHostToDevice));
@@ -207,6 +211,9 @@ void testForwardElimination()
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	forwardEliminationRight<<<1,1>>>(dNode, 0, 1, 0, 6, 1);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
+	backwardSubstitutionRight << <1, 1 >> >(dNode, 0, 1, 0, 4, 1);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(&node, dNode, sizeof(Node), cudaMemcpyDeviceToHost));
@@ -373,7 +380,7 @@ void showMemoryConsumption()
 int main()
 {
 	ERRCHECK(cudaSetDevice(0));
-	testForwardElimination();
+	testGaussianElimination();
 	getch();
 	return 0;
 	clock_t start, end;
