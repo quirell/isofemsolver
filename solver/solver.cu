@@ -73,7 +73,7 @@ __constant__ Properties dProps;
 struct Node
 {
 	float m[MSIZE];
-	float* x;
+	float* x[6];
 };
 
 __device__ __host__ void printNode(Node node);
@@ -93,14 +93,14 @@ __global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCo
 //	printf("%d %d\n", idx, colStart);
 	int nodeIdx = startIdx + idx;
 	float* m = nodes[nodeIdx].m;
-	float* x = nodes[nodeIdx].x;
+	float** x = nodes[nodeIdx].x;
 	for (int rcol = colStart; rcol < colStart + COLUMNS_PER_THREAD; rcol++)
 	{
 		for (int row = elim; row >= 0; row--)//max elim == 4,5th is already done after elimination
 		{
 			for (int col = row + 1; col < 6; col++)
 			{
-				x[rXY(row, rcol)] -= m[XY(row, col)] * x[rXY(col, rcol)];
+				x[row][rcol] -= m[XY(row, col)] * x[col][rcol];
 			}
 		}
 	}
@@ -138,18 +138,18 @@ __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCoun
 	int colStart = ((blockIdx.x * blockDim.x + threadIdx.x) % (dProps.rightCount / COLUMNS_PER_THREAD))*COLUMNS_PER_THREAD;
 	int nodeIdx = startIdx + idx;
 	float* m = nodes[nodeIdx].m;
-	float* x = nodes[nodeIdx].x;
+	float** x = nodes[nodeIdx].x;
 	for (int row = rowStart; row < elim; row++)
 	{
 		for (int col = colStart; col < colStart + COLUMNS_PER_THREAD; col++)
 		{
-			x[rXY(row, col)] /= m[XY(row, row)];
+			x[row][col] /= m[XY(row, row)];
 		}
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
 			for (int col = colStart; col < colStart + COLUMNS_PER_THREAD; col++)
 			{
-				x[rXY(rowBelow, col)] -= m[XY(rowBelow, row)] * x[rXY(row, col)];
+				x[rowBelow][col] -= m[XY(rowBelow, row)] * x[row][col];
 			}
 		}
 	}
@@ -160,7 +160,12 @@ __global__ void assignTestRightSize(Node* node, float* x)
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= 1)
 		return;
-	node->x = x;
+	node->x[0] = x;
+	node->x[1] = x+4;
+	node->x[2] = x+4*2;
+	node->x[3] = x+4*3;
+	node->x[4] = x+4*4;
+	node->x[5] = x+4*5;
 }
 
 void testGaussianElimination()
