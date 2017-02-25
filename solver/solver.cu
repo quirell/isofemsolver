@@ -282,14 +282,14 @@ __global__ void divideLeft(Node* nodes, float* leftSide)
 	//printf("%d %d\n", idx, nodeIdx);
 	Node node = nodes[nodeIdx];
 	idx *= 5 * 3;
-	node.m[XY(3, 3)] = leftSide[idx + 2] / 3;
-	node.m[XY(3, 2)] = leftSide[idx + 3] / 2;
-	node.m[XY(3, 1)] = leftSide[idx + 4];
+	node.m[XY(2, 3)] = leftSide[idx + 2] / 3;  //maybe swap 2 col with 3 col is also required
+	node.m[XY(2, 2)] = leftSide[idx + 3] / 2;
+	node.m[XY(2, 1)] = leftSide[idx + 4];
 
-	node.m[XY(2, 3)] = leftSide[idx + 6] / 2;
-	node.m[XY(2, 2)] = leftSide[idx + 7] * 2 / 3;
-	node.m[XY(2, 1)] = leftSide[idx + 8];
-	node.m[XY(2, 4)] = leftSide[idx + 9];
+	node.m[XY(3, 3)] = leftSide[idx + 6] / 2;
+	node.m[XY(3, 2)] = leftSide[idx + 7] * 2 / 3;
+	node.m[XY(3, 1)] = leftSide[idx + 8];
+	node.m[XY(3, 4)] = leftSide[idx + 9];
 
 	node.m[XY(1, 3)] = leftSide[idx + 10];
 	node.m[XY(1, 2)] = leftSide[idx + 11];
