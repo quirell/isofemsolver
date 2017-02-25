@@ -367,14 +367,14 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, Properties props)
 }
 
 
-int eliminateFirstRow(Node* dNodes, Properties props)
+int eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 {
-	forwardEliminationLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
-	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
+	forwardEliminationLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
+	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
 	if (props.beforeLastLevelNodes > 0)
 	{
-		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
-		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
+		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1); 
+		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
 	}
 	return props.beforeLastLevelNotBottomNodes;
 }
@@ -391,6 +391,11 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* leftSize)
 		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 2);
 		forwardEliminationRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, start, nodesCount, 0, 2);
 	}
+//	nodesCount = 2;
+//	for (int start = 1; start < ; nodesCount = (start + 1) / 2, start = PARENT(start))//order matters
+//	{
+//
+//	}
 }
 
 
