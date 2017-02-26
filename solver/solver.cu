@@ -79,9 +79,58 @@ struct Node
 __device__ __host__ void printNode(Node node);
 
 
-void generateTestEquation(int leftSize,int rightSize,float ** leftSidePtr,float ** rightSidePtr)
+void fillRightSide(float value, int row, float* rightSide, int rightCount)
 {
-	float * leftSide = (float*)malloc(sizeof(float)*leftSize*5);
+	for (int i = 0; i < rightCount; i++)
+	{
+		rightSide[row * rightCount + i] = value;
+	}
+}
+
+void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
+{
+	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
+	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
+	for (int i = 0; i < leftCount * 5; i++)
+		leftSide[i] = 6;
+	leftSide[0] = 0;
+	leftSide[1] = 0;
+	leftSide[5] = 0;
+	leftSide[leftCount * 5 - 6] = 0;
+	leftSide[leftCount * 5 - 2] = 0;
+	leftSide[leftCount * 5 - 1] = 0;
+
+	for (int i = 2; i < leftCount - 2; i++)
+	{
+		int rightSideVal = 0;
+		for (int j = 0; j < 5; j++)
+		{
+			int solution = (i - 1) + j; //solution is x(0)=1,x(1)=2,x(n-1)=n
+			rightSideVal += 6 * solution;
+		}
+		fillRightSide(rightSideVal, i, rightSide, rightCount);
+	}
+	fillRightSide(1 * 6 + 2 * 6 + 3 * 6, 0, rightSide, rightCount);
+	fillRightSide(1 * 6 + 2 * 6 + 3 * 6 + 4 * 6, 1, rightSide, rightCount);
+	fillRightSide((leftCount - 3) * 6 + (leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount-2, rightSide, rightCount);
+	fillRightSide((leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount-1, rightSide, rightCount);
+	*leftSidePtr = leftSide;
+	*rightSidePtr = rightSide;
+	for (int i = 0; i < leftCount;i++)
+	{	
+		printf("%d:", i + 1);
+		for (int j = 0; j < 5;j++)
+		{
+			printf("%.0f ", leftSide[i * 5 + j]);
+		}
+		printf(" |  ");
+		for (int j = 0; j < rightCount; j++)
+		{
+			printf("%.0f ", rightSide[i*rightCount+j]);
+		}
+		printf("\n");
+	}
+	getch();
 }
 
 __global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int end, int elim)
@@ -353,7 +402,7 @@ __global__ void copyRight(Node* nodes, int nodesCount)
 	if (idx >= nodesCount)
 		return;
 	Node* node = &nodes[idx];
-	node->x[0] = node[LEFT(idx)].x[4]; //do not require merging, because two children share the same memory 
+	node->x[0] = node[LEFT(idx)].x[4]; //do not require merging, because two children share the same memory  and not use it simultaneously
 	node->x[1] = node[LEFT(idx)].x[5]; //
 	node->x[2] = node[LEFT(idx)].x[2];
 	node->x[3] = node[LEFT(idx)].x[3];
@@ -395,6 +444,23 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 	ERRCHECK(cudaDeviceSynchronize());
 }
 
+void testDistributeInputAmongNodes()
+{
+	Properties props = getProperities(14, 2);
+	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
+	float * leftSide;
+	float * rightSide;
+	generateTestEquation(14, 2, &leftSide, &rightSide);
+	Node* nodes = new Node[props.heapNodes];
+	Node* dNodes = nullptr;
+	float* dLeftSide = nullptr;
+	float* dRightSide = nullptr;
+	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
+	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
+	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
+	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
+	
+}
 
 int eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 {
@@ -402,8 +468,8 @@ int eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
 	if (props.beforeLastLevelNodes > 0)
 	{
-		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);//todo
-		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
+		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 1);
+		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 1);
 	}
 	return props.beforeLastLevelNotBottomNodes;
 }
@@ -445,9 +511,14 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide)
 	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
 }
 
+	
+
 
 int main()
 {
+	float * l, * r;
+	generateTestEquation(14, 4, &l,&r);
+	return 0;
 	ERRCHECK(cudaSetDevice(0));
 	testGaussianElimination();
 	getch();
