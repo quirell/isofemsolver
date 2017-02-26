@@ -79,24 +79,24 @@ struct Node
 __device__ __host__ void printNode(Node node);
 
 
-__device__ __inline__ int rXY(int x, int y)
+void generateTestEquation(int leftSize,int rightSize,float ** leftSidePtr,float ** rightSidePtr)
 {
-	return x * dProps.rightCount + y;
+	float * leftSide = (float*)malloc(sizeof(float)*leftSize*5);
 }
 
-__global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int start, int elim)
+__global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int end, int elim)
 {
 	int idx = (blockIdx.x * blockDim.x + threadIdx.x) / (dProps.rightCount / COLUMNS_PER_THREAD);
 	if (idx >= nodesCount)
 		return;
-	int colStart = ((blockIdx.x * blockDim.x + threadIdx.x) % (dProps.rightCount / COLUMNS_PER_THREAD))*COLUMNS_PER_THREAD;
-//	printf("%d %d\n", idx, colStart);
+	int colStart = ((blockIdx.x * blockDim.x + threadIdx.x) % (dProps.rightCount / COLUMNS_PER_THREAD)) * COLUMNS_PER_THREAD;
+	//	printf("%d %d\n", idx, colStart);
 	int nodeIdx = startIdx + idx;
 	float* m = nodes[nodeIdx].m;
 	float** x = nodes[nodeIdx].x;
 	for (int rcol = colStart; rcol < colStart + COLUMNS_PER_THREAD; rcol++)
 	{
-		for (int row = elim; row >= 0; row--)//max elim == 4,5th is already done after elimination
+		for (int row = elim; row >= end; row--)//max elim == 4,5th is already done after elimination
 		{
 			for (int col = row + 1; col < 6; col++)
 			{
@@ -129,13 +129,12 @@ __global__ void forwardEliminationLeft(Node* nodes, int startIdx, int nodesCount
 	}
 }
 
-
 __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCount, int rowStart, int elim)
 {
 	int idx = (blockIdx.x * blockDim.x + threadIdx.x) / (dProps.rightCount / COLUMNS_PER_THREAD);
 	if (idx >= nodesCount)
 		return;
-	int colStart = ((blockIdx.x * blockDim.x + threadIdx.x) % (dProps.rightCount / COLUMNS_PER_THREAD))*COLUMNS_PER_THREAD;
+	int colStart = ((blockIdx.x * blockDim.x + threadIdx.x) % (dProps.rightCount / COLUMNS_PER_THREAD)) * COLUMNS_PER_THREAD;
 	int nodeIdx = startIdx + idx;
 	float* m = nodes[nodeIdx].m;
 	float** x = nodes[nodeIdx].x;
@@ -161,11 +160,11 @@ __global__ void assignTestRightSize(Node* node, float* x)
 	if (idx >= 1)
 		return;
 	node->x[0] = x;
-	node->x[1] = x+4;
-	node->x[2] = x+4*2;
-	node->x[3] = x+4*3;
-	node->x[4] = x+4*4;
-	node->x[5] = x+4*5;
+	node->x[1] = x + 4;
+	node->x[2] = x + 4 * 2;
+	node->x[3] = x + 4 * 3;
+	node->x[4] = x + 4 * 4;
+	node->x[5] = x + 4 * 5;
 }
 
 void testGaussianElimination()
@@ -190,16 +189,16 @@ void testGaussianElimination()
 	float* dX;
 	ERRCHECK(cudaMalloc(&dX, sizeof(x)));
 	ERRCHECK(cudaMemcpy(dX, &x, sizeof(x) , cudaMemcpyHostToDevice));
-	assignTestRightSize << <1, 1 >> >(dNode, dX);
+	assignTestRightSize <<<1, 1 >>>(dNode, dX);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	forwardEliminationLeft << <1, 1 >> >(dNode, 0, 1, 0, 6);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationRight << <1, 4/COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 6);
+	forwardEliminationRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 6);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	backwardSubstitutionRight << <1, 4/COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
+	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(&node, dNode, sizeof(Node), cudaMemcpyDeviceToHost));
@@ -213,8 +212,8 @@ void testGaussianElimination()
 	printf("\n");
 	for (int i = 0; i < props.rightCount; i++)
 	{
-		for (int j= 0; j < 6;j++)
-			printf("%.1f ", x[j*props.rightCount+i]);
+		for (int j = 0; j < 6; j++)
+			printf("%.1f ", x[j * props.rightCount + i]);
 		printf("\n");
 	}
 }
@@ -287,7 +286,7 @@ __global__ void divideLeft(Node* nodes, float* leftSide)
 	//printf("%d %d\n", idx, nodeIdx);
 	Node node = nodes[nodeIdx];
 	idx *= 5 * 3;
-	node.m[XY(2, 3)] = leftSide[idx + 2] / 3;  //maybe swap 2 col with 3 col is also required
+	node.m[XY(2, 3)] = leftSide[idx + 2] / 3; //maybe swap 2 col with 3 col is also required
 	node.m[XY(2, 2)] = leftSide[idx + 3] / 2;
 	node.m[XY(2, 1)] = leftSide[idx + 4];
 
@@ -332,11 +331,34 @@ __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 	//printf("|%d %d|\n", dProps.lastLevelStartIdx, nodeIdx);
 }
 
-__global__ void assignRightSideToNodes(Node* nodes, float* rightSide)
+__global__ void divideRight(Node* nodes, float* rightSide)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	Node node = nodes[idx];
-	//	node.x = rightSide + idx*FIRST_LEVEL_SIZE*dRightCols;
+	if (idx >= dProps.bottomNodes)
+		return;
+	int nodeIdx = (idx < dProps.lastLevelNodes) * (dProps.lastLevelStartIdx + idx) + (idx >= dProps.lastLevelNodes) * (dProps.beforeLastLevelStartIdx + idx);
+	Node* node = &nodes[nodeIdx];
+	idx *= dProps.rightCount * 3;
+	node->x[0] = nullptr;
+	node->x[1] = rightSide + idx + dProps.rightCount * 2; //n+2  //swapped first and third row, and then second and third
+	node->x[2] = rightSide + idx;//n
+	node->x[3] = rightSide + idx + dProps.rightCount; //n+1
+	node->x[4] = rightSide + idx + dProps.rightCount * 3; //n+3
+	node->x[5] = rightSide + idx + dProps.rightCount * 4; //n+4	
+}
+
+__global__ void copyRight(Node* nodes, int nodesCount)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx >= nodesCount)
+		return;
+	Node* node = &nodes[idx];
+	node->x[0] = node[LEFT(idx)].x[4]; //do not require merging, because two children share the same memory 
+	node->x[1] = node[LEFT(idx)].x[5]; //
+	node->x[2] = node[LEFT(idx)].x[2];
+	node->x[3] = node[LEFT(idx)].x[3];
+	node->x[4] = node[RIGHT(idx)].x[4];
+	node->x[5] = node[RIGHT(idx)].x[5];
 }
 
 void leftSideInit(float* leftSide, int size)
@@ -360,15 +382,17 @@ void showMemoryConsumption()
 }
 
 
-void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, Properties props)
+void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide, Properties props)
 {
-	divideLeft << <(props.bottomNodes + THREADS) / THREADS, THREADS >> >(dNodes, dLeftSide);
+	divideLeft << <BLOCKS(dProps.bottomNodes), THREADS >> >(dNodes, dLeftSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	divideFirstAndLast << <1, 1 >> >(dNodes, dLeftSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	//divide right side somehow
+	divideRight<<<BLOCKS(dProps.bottomNodes),THREADS>>>(dNodes, dRightSide);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 }
 
 
@@ -378,29 +402,47 @@ int eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
 	if (props.beforeLastLevelNodes > 0)
 	{
-		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1); 
+		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);//todo
 		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
 	}
 	return props.beforeLastLevelNotBottomNodes;
 }
 
-void run(Node* dNodes, float* dLeftSide, Properties props, float* leftSize)
+void eliminateRoot(Node* dNodes, Properties props)
 {
-	distributeInputAmongNodes(dNodes, dLeftSide, props);
+	copyRight << <1, THREADS >> >(dNodes, 1);
+	mergeLeftChild << <1,1>> >(dNodes, 0, 1);
+	mergeRightChild << <1,1>> >(dNodes, 0, 1);
+	forwardEliminationLeft << <1,1>> >(dNodes, 0, 1, 0, 6);
+	forwardEliminationRight << <BLOCKS(1*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, 0, 1, 0, 6);
+	backwardSubstitutionRight<<<BLOCKS(1*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, 0, 1, 0, 6);
+}
+
+void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide)
+{
+	distributeInputAmongNodes(dNodes, dLeftSide, dRightSide, props);
 	int nodesCount = eliminateFirstRow(dNodes, props);
 
 	for (int start = PARENT(props.lastLevelStartIdx); start > 0; nodesCount = (start + 1) / 2 , start = PARENT(start))//order matters
 	{
+		copyRight<<<BLOCKS(nodesCount), THREADS>>>(dNodes, nodesCount);
 		mergeLeftChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
 		mergeRightChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
 		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 2);
 		forwardEliminationRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, start, nodesCount, 0, 2);
 	}
-//	nodesCount = 2;
-//	for (int start = 1; start < ; nodesCount = (start + 1) / 2, start = PARENT(start))//order matters
-//	{
-//
-//	}
+	eliminateRoot(dNodes, props);
+	nodesCount = 2;
+	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
+	{
+		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 2);
+	}
+	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes, 0, 2);
+	if (props.beforeLastLevelNodes > 0)
+	{
+		backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, dProps.beforeLastLevelNodes, 1, 1);
+	}
+	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
 }
 
 
