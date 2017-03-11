@@ -47,6 +47,7 @@ const struct Properties
 	int beforeLastLevelStartIdx;
 	int rightCount;
 	int beforeLastLevelNotBottomNodes;
+	int rightSize;
 };
 
 Properties getProperities(int leftCount, int rightCount)
@@ -64,6 +65,7 @@ Properties getProperities(int leftCount, int rightCount)
 	p.lastLevelStartIdx = p.heapNodes - p.lastLevelNodes;
 	p.beforeLastLevelStartIdx = p.remainingNodes - p.lastLevelNodes; //account for idx value, undefined when beforeLastLevelNodes is = 0
 	p.rightCount = rightCount;
+	p.rightSize = rightCount * leftCount;
 	return p;
 }
 
@@ -76,6 +78,7 @@ struct Node
 	float* x[6];
 };
 
+void printAllNodes(Node* nodes, int nodesStart, Properties props);
 __device__ __host__ void printNode(Node node);
 
 
@@ -92,7 +95,7 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
 	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
 	for (int i = 0; i < leftCount * 5; i++)
-		leftSide[i] = 6;
+		leftSide[i] = 6;// i / 5 + 1;
 	leftSide[0] = 0;
 	leftSide[1] = 0;
 	leftSide[5] = 0;
@@ -112,25 +115,25 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	}
 	fillRightSide(1 * 6 + 2 * 6 + 3 * 6, 0, rightSide, rightCount);
 	fillRightSide(1 * 6 + 2 * 6 + 3 * 6 + 4 * 6, 1, rightSide, rightCount);
-	fillRightSide((leftCount - 3) * 6 + (leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount-2, rightSide, rightCount);
-	fillRightSide((leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount-1, rightSide, rightCount);
+	fillRightSide((leftCount - 3) * 6 + (leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 2, rightSide, rightCount);
+	fillRightSide((leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 1, rightSide, rightCount);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-	for (int i = 0; i < leftCount;i++)
-	{	
-		printf("%d:", i + 1);
-		for (int j = 0; j < 5;j++)
-		{
-			printf("%.0f ", leftSide[i * 5 + j]);
-		}
-		printf(" |  ");
-		for (int j = 0; j < rightCount; j++)
-		{
-			printf("%.0f ", rightSide[i*rightCount+j]);
-		}
-		printf("\n");
-	}
-	getch();
+//		for (int i = 0; i < leftCount; i++)
+//		{
+//			printf("%d:", i + 1);
+//			for (int j = 0; j < 5; j++)
+//			{
+//				printf("%.0f ", leftSide[i * 5 + j]);
+//			}
+//			printf(" |  ");
+//			for (int j = 0; j < rightCount; j++)
+//			{
+//				printf("%.0f ", rightSide[i * rightCount + j]);
+//			}
+//			printf("\n");
+//		}
+//		getch();
 }
 
 __global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int end, int elim)
@@ -365,11 +368,11 @@ __global__ void divideLeft(Node* nodes, float* leftSide)
 __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 {
 	int nodeIdx = dProps.lastLevelStartIdx;
-	nodes[dProps.remainingNodes].m[XY(3, 3)] = leftSide[2];
-	nodes[dProps.remainingNodes].m[XY(3, 2)] = leftSide[3];
+	nodes[dProps.remainingNodes].m[XY(2, 3)] = leftSide[2];
+	nodes[dProps.remainingNodes].m[XY(2, 2)] = leftSide[3];
 
-	nodes[dProps.remainingNodes].m[XY(2, 3)] = leftSide[6];
-	nodes[dProps.remainingNodes].m[XY(2, 2)] = leftSide[7];
+	nodes[dProps.remainingNodes].m[XY(3, 3)] = leftSide[6];
+	nodes[dProps.remainingNodes].m[XY(3, 2)] = leftSide[7];
 
 	nodeIdx = (dProps.beforeLastLevelNodes == 0) * (dProps.heapNodes - 1) + (dProps.beforeLastLevelNodes != 0) * (dProps.heapNodes - dProps.lastLevelNodes - 1);
 	nodes[nodeIdx].m[XY(4, 4)] = leftSide[dProps.leftSize - 25 + 17];
@@ -380,20 +383,37 @@ __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 	//printf("|%d %d|\n", dProps.lastLevelStartIdx, nodeIdx);
 }
 
+inline __device__ __host__ void divideRightNode(Node* nodes, float* rightSide, int nodeIdx, int idx, int rightCount)
+{
+	Node* node = &nodes[nodeIdx];
+	idx *= rightCount * 3;
+	rightSide += idx;
+	node->x[0] = nullptr;
+	node->x[1] = rightSide + rightCount * 2; //n+2  //swapped first and third row, and then second and third
+	node->x[2] = rightSide;//n
+	node->x[3] = rightSide + rightCount; //n+1
+	node->x[4] = rightSide + rightCount * 3; //n+3
+	node->x[5] = rightSide + rightCount * 4; //n+4	
+}
+
 __global__ void divideRight(Node* nodes, float* rightSide)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= dProps.bottomNodes)
 		return;
 	int nodeIdx = (idx < dProps.lastLevelNodes) * (dProps.lastLevelStartIdx + idx) + (idx >= dProps.lastLevelNodes) * (dProps.beforeLastLevelStartIdx + idx);
-	Node* node = &nodes[nodeIdx];
-	idx *= dProps.rightCount * 3;
-	node->x[0] = nullptr;
-	node->x[1] = rightSide + idx + dProps.rightCount * 2; //n+2  //swapped first and third row, and then second and third
-	node->x[2] = rightSide + idx;//n
-	node->x[3] = rightSide + idx + dProps.rightCount; //n+1
-	node->x[4] = rightSide + idx + dProps.rightCount * 3; //n+3
-	node->x[5] = rightSide + idx + dProps.rightCount * 4; //n+4	
+	divideRightNode(nodes, rightSide, nodeIdx, idx, dProps.rightCount);
+}
+
+inline __device__ __host__ void copyRightNode(Node* nodes, int idx)
+{
+	Node* node = &nodes[idx];
+	node->x[0] = nodes[LEFT(idx)].x[4]; //do not require merging, because two children share the same memory  and not use it simultaneously
+	node->x[1] = nodes[LEFT(idx)].x[5]; //
+	node->x[2] = nodes[LEFT(idx)].x[2];
+	node->x[3] = nodes[LEFT(idx)].x[3];
+	node->x[4] = nodes[RIGHT(idx)].x[4];
+	node->x[5] = nodes[RIGHT(idx)].x[5];
 }
 
 __global__ void copyRight(Node* nodes, int nodesCount)
@@ -401,13 +421,7 @@ __global__ void copyRight(Node* nodes, int nodesCount)
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= nodesCount)
 		return;
-	Node* node = &nodes[idx];
-	node->x[0] = node[LEFT(idx)].x[4]; //do not require merging, because two children share the same memory  and not use it simultaneously
-	node->x[1] = node[LEFT(idx)].x[5]; //
-	node->x[2] = node[LEFT(idx)].x[2];
-	node->x[3] = node[LEFT(idx)].x[3];
-	node->x[4] = node[RIGHT(idx)].x[4];
-	node->x[5] = node[RIGHT(idx)].x[5];
+	copyRightNode(nodes, idx);
 }
 
 void leftSideInit(float* leftSide, int size)
@@ -439,19 +453,33 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 	divideFirstAndLast << <1, 1 >> >(dNodes, dLeftSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
+	ERRCHECK(cudaFree(dLeftSide));
 	divideRight<<<BLOCKS(dProps.bottomNodes),THREADS>>>(dNodes, dRightSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 }
 
+void divideHostRightSide(Properties props, Node* nodes, float* rightSide)
+{
+	for (int i = props.remainingNodes; i < props.heapNodes; i++)
+	{
+		divideRightNode(nodes, rightSide, i, i - props.remainingNodes, props.rightCount);
+	}
+	for (int i = props.remainingNodes - 1; i >= 0; i--)
+	{
+		copyRightNode(nodes, i);
+	}
+}
+
 void testDistributeInputAmongNodes()
 {
-	Properties props = getProperities(14, 2);
+	Properties props = getProperities(14, 1);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float * leftSide;
-	float * rightSide;
+	float* leftSide;
+	float* rightSide;
 	generateTestEquation(14, 2, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
+	memset(nodes, 0, props.heapNodes*sizeof(Node));
 	Node* dNodes = nullptr;
 	float* dLeftSide = nullptr;
 	float* dRightSide = nullptr;
@@ -459,7 +487,28 @@ void testDistributeInputAmongNodes()
 	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
 	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
 	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	
+	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
+	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
+	distributeInputAmongNodes(dNodes, dLeftSide, dRightSide, props);
+	for (int start = PARENT(props.lastLevelStartIdx), nodesCount = props.beforeLastLevelNotBottomNodes; start > 0; nodesCount = (start + 1) / 2 , start = PARENT(start))//order matters
+	{
+		copyRight << <BLOCKS(nodesCount), THREADS >> >(dNodes, nodesCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		mergeLeftChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		mergeRightChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+	}
+	copyRight << <1, THREADS >> >(dNodes, 1);
+	mergeLeftChild << <1, 1 >> >(dNodes, 0, 1);
+	mergeRightChild << <1, 1 >> >(dNodes, 0, 1);
+	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
+	ERRCHECK(cudaMemcpy(rightSide,dRightSide, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+	divideHostRightSide(props, nodes, rightSide);
+	printAllNodes(nodes,0, props);
 }
 
 int eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
@@ -511,13 +560,13 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide)
 	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
 }
 
-	
-
 
 int main()
 {
-	float * l, * r;
-	generateTestEquation(14, 4, &l,&r);
+	//	float *l, *r;
+	//	generateTestEquation(14, 4, &l, &r);
+	testDistributeInputAmongNodes();
+	getch();
 	return 0;
 	ERRCHECK(cudaSetDevice(0));
 	testGaussianElimination();
@@ -571,6 +620,29 @@ int main()
 	return 0;
 }
 
+void printAllNodes(Node* nodes, int nodesStart, Properties props)
+{
+	int powerOfTwo = (int)log2(nodesStart+1)+1;
+	for (int i = nodesStart; i < props.heapNodes; i++)
+	{
+//		if (i == powerOfTwo)
+//		{
+//			printf("level %d\n", powerOfTwo);
+//			powerOfTwo <<= 1;
+//		}
+		Node node = nodes[i];
+		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
+		{
+			printf("%.1f %.1f %.1f %.1f %.1f %.1f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
+			for (int k = 0; k < props.rightCount; k++)
+			{
+				printf("%.0f ", node.x[j][k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
+}
 
 __device__ __host__ void printNode(Node node)
 {
