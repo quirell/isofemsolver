@@ -433,24 +433,28 @@ __global__ void assignRightSideMem(Node* nodes, float* rightSideMem)
 	assignRightNodeMem(nodes, rightSideMem, idx,dProps);
 }
 
-inline __device__ __host__ void mergeRightSideNode(Node* nodes, int idx)
+inline __device__ __host__ void mergeRightSideNode(Node* nodes, int idx,int nodeIdx)
 {
-	Node* parent = &nodes[idx / dProps.rightCount];
+	Node* parent = &nodes[nodeIdx];
+	Node* left = &nodes[LEFT(nodeIdx)];
+	Node* right = &nodes[RIGHT(nodeIdx)];
 	idx %= dProps.rightCount;
-	parent->x[0][idx] = nodes[LEFT(idx)].x[4][idx] + nodes[RIGHT(idx)].x[2][idx];
-	parent->x[1][idx] = nodes[LEFT(idx)].x[5][idx] + nodes[RIGHT(idx)].x[3][idx];
-	parent->x[2][idx] = nodes[LEFT(idx)].x[2][idx];
-	parent->x[3][idx] = nodes[LEFT(idx)].x[3][idx];
-	parent->x[4][idx] = nodes[RIGHT(idx)].x[4][idx];
-	parent->x[5][idx] = nodes[RIGHT(idx)].x[5][idx];
+	parent->x[0][idx] = left->x[4][idx] + right->x[2][idx];
+	parent->x[1][idx] = left->x[5][idx] + right->x[3][idx];
+	parent->x[2][idx] = left->x[2][idx];
+	parent->x[3][idx] = left->x[3][idx];
+	parent->x[4][idx] = right->x[4][idx];
+	parent->x[5][idx] = right->x[5][idx];
 }
 
 __global__ void mergeRightSideLayer(Node* nodes,int startNode,int rightSidesCount)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx > rightSidesCount)
+	if (idx >= rightSidesCount)
 		return;
-	mergeRightSideNode(nodes+startNode, idx);
+	int nodeIdx = startNode + idx / dProps.rightCount ;
+	printf("nodeIdx: %d, idx: %d\n", nodeIdx,idx);
+	mergeRightSideNode(nodes, idx,nodeIdx);
 }
 
 void leftSideInit(float* leftSide, int size)
@@ -534,9 +538,15 @@ void testDistributeInputAmongNodes()
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 	}
-	mergeRightSideLayer<< <1, THREADS >> >(dNodes,0, props.rightCount);
+	mergeRightSideLayer<< <1, props.rightCount >> >(dNodes,0, props.rightCount);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 	mergeLeftChild << <1, 1 >> >(dNodes, 0, 1);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 	mergeRightChild << <1, 1 >> >(dNodes, 0, 1);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	ERRCHECK(cudaMemcpy(rightSideMem,dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, nodes, rightSideMem);
