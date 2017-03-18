@@ -3,140 +3,13 @@
 
 #include <stdio.h>
 #include <conio.h>
-#include <ctime>
 #include <new>
-#include <cmath>
-#include <cstring>
-#define ERRCHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-
-inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true, bool wait = true)
-{
-	if (code != cudaSuccess)
-	{
-		fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-		if (wait) getch();
-		if (abort) exit(code);
-	}
-}
-
-#define MSIZE 36
-#define INPUT_SIZE(N) N*5 - 3*2
-#define PARENT(i) (i-1)/2
-#define LEFT(i) 2*i + 1
-#define RIGHT(i) 2*i + 2
-#define BOTTOM_HEAP_NODES_COUNT(N) (N-2)/3 //size of input must be 2+3n,n>1
-#define HEAP_SIZE(N) 2*BOTTOM_HEAP_NODES_COUNT(N)-1
-#define FIRST_LEVEL_SIZE 19
-#define ROW_LENGTH 5
-#define FIRST_LVL_MAT_SIZE 5
-#define XY(x,y) x*6+y
-#define THREADS 512
-#define BLOCKS(N) (N+THREADS)/THREADS
-#define COLUMNS_PER_THREAD 1
-
-const struct Properties
-{
-	int leftCount;
-	int leftSize;
-	int heapNodes;
-	int bottomNodes;
-	int remainingNodes;
-	int lastLevelNodes;
-	int beforeLastLevelNodes;
-	int lastLevelStartIdx;
-	int beforeLastLevelStartIdx;
-	int rightCount;
-	int beforeLastLevelNotBottomNodes;
-	int rightSize;
-	int rightSizeMem;
-};
-
-Properties getProperities(int leftCount, int rightCount)
-{
-	Properties p;
-	p.leftCount = leftCount;
-	p.leftSize = leftCount * 5;
-	p.heapNodes = HEAP_SIZE(leftCount);
-	p.bottomNodes = BOTTOM_HEAP_NODES_COUNT(leftCount);
-	p.remainingNodes = p.heapNodes - p.bottomNodes;
-	p.beforeLastLevelStartIdx = (int)pow(2, (int)log2(p.remainingNodes)) - 1;
-	p.beforeLastLevelNotBottomNodes = p.remainingNodes - p.beforeLastLevelStartIdx;
-	p.beforeLastLevelNodes = pow(2, (int)log2(p.bottomNodes - 1)) - p.beforeLastLevelNotBottomNodes;// -1 is in case bottomNodes is power of two, then beforeLastLevelNodes should obviously be 0
-	p.lastLevelNodes = p.bottomNodes - p.beforeLastLevelNodes;
-	p.lastLevelStartIdx = p.heapNodes - p.lastLevelNodes;
-	p.beforeLastLevelStartIdx = p.remainingNodes - p.lastLevelNodes; //account for idx value, undefined when beforeLastLevelNodes is = 0
-	p.rightCount = rightCount;
-	p.rightSize = rightCount * leftCount;
-	p.rightSizeMem = p.heapNodes * rightCount * 6;
-	return p;
-}
-
+#include "constants.cuh"
+#include "helpers.cuh"
+#include "solver.cuh"
+#include "test_functions.cuh"
 
 __constant__ Properties dProps;
-
-struct Node
-{
-	float m[MSIZE];
-	float* x[6];
-};
-
-void printAllNodes(Node* nodes, int nodesStart, Properties props);
-__device__ __host__ void printNode(Node node);
-
-
-void fillRightSide(float value, int row, float* rightSide, int rightCount)
-{
-	for (int i = 0; i < rightCount; i++)
-	{
-		rightSide[row * rightCount + i] = value;
-	}
-}
-
-void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
-{
-	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
-	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
-	for (int i = 0; i < leftCount * 5; i++)
-		leftSide[i] = 6;// i / 5 + 1;
-	leftSide[0] = 0;
-	leftSide[1] = 0;
-	leftSide[5] = 0;
-	leftSide[leftCount * 5 - 6] = 0;
-	leftSide[leftCount * 5 - 2] = 0;
-	leftSide[leftCount * 5 - 1] = 0;
-
-	for (int i = 2; i < leftCount - 2; i++)
-	{
-		int rightSideVal = 0;
-		for (int j = 0; j < 5; j++)
-		{
-			int solution = (i - 1) + j; //solution is x(0)=1,x(1)=2,x(n-1)=n
-			rightSideVal += 6 * solution;
-		}
-		fillRightSide(rightSideVal, i, rightSide, rightCount);
-	}
-	fillRightSide(1 * 6 + 2 * 6 + 3 * 6, 0, rightSide, rightCount);
-	fillRightSide(1 * 6 + 2 * 6 + 3 * 6 + 4 * 6, 1, rightSide, rightCount);
-	fillRightSide((leftCount - 3) * 6 + (leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 2, rightSide, rightCount);
-	fillRightSide((leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 1, rightSide, rightCount);
-	*leftSidePtr = leftSide;
-	*rightSidePtr = rightSide;
-	//		for (int i = 0; i < leftCount; i++)
-	//		{
-	//			printf("%d:", i + 1);
-	//			for (int j = 0; j < 5; j++)
-	//			{
-	//				printf("%.0f ", leftSide[i * 5 + j]);
-	//			}
-	//			printf(" |  ");
-	//			for (int j = 0; j < rightCount; j++)
-	//			{
-	//				printf("%.0f ", rightSide[i * rightCount + j]);
-	//			}
-	//			printf("\n");
-	//		}
-	//		getch();
-}
 
 __global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int end, int elim)
 {
@@ -207,71 +80,6 @@ __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCoun
 		}
 	}
 }
-
-__global__ void assignTestRightSide(Node* node, float* x)
-{
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx >= 1)
-		return;
-	node->x[0] = x;
-	node->x[1] = x + 4;
-	node->x[2] = x + 4 * 2;
-	node->x[3] = x + 4 * 3;
-	node->x[4] = x + 4 * 4;
-	node->x[5] = x + 4 * 5;
-}
-
-void testGaussianElimination()
-{
-	Properties props = getProperities(1, 4);
-	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	Node node;
-	float m[] = {
-		1, 1, -2, 1, 3, -1,
-		2, -1, 1, 2, 1, -3,
-		1, 3, -3, -1, 2, 1,
-		5, 2, -1, -1, 2, 1,
-		-3, -1, 2, 3, 1, 3,
-		4, 3, 1, -6, -3, -2
-	};
-	memcpy(node.m, m, sizeof(float) * MSIZE);
-	Node* dNode;
-	printNode(node);
-	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
-	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
-	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
-	float* dX;
-	ERRCHECK(cudaMalloc(&dX, sizeof(x)));
-	ERRCHECK(cudaMemcpy(dX, &x, sizeof(x) , cudaMemcpyHostToDevice));
-	assignTestRightSide <<<1, 1 >>>(dNode, dX);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationLeft << <1, 1 >> >(dNode, 0, 1, 0, 6);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 6);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	ERRCHECK(cudaMemcpy(&node, dNode, sizeof(Node), cudaMemcpyDeviceToHost));
-	printNode(node);
-	ERRCHECK(cudaMemcpy(x, dX, sizeof(x), cudaMemcpyDeviceToHost));
-	float c[] = {1,-2,3,4,2,-1};
-	for (int i = 0; i < 6; i++)
-	{
-		printf("%.1f ", c[i]);
-	}
-	printf("\n");
-	for (int i = 0; i < props.rightCount; i++)
-	{
-		for (int j = 0; j < 6; j++)
-			printf("%.1f ", x[j * props.rightCount + i]);
-		printf("\n");
-	}
-}
-
 
 __global__ void mergeLeftChild(Node* nodes, int startIdx, int nodesCount)
 {
@@ -391,7 +199,7 @@ __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 	//printf("|%d %d|\n", dProps.lastLevelStartIdx, nodeIdx);
 }
 
-inline __device__ __host__ void divideRightNode(Node* nodes, float* rightSide, int ord, int nodeIdx, int idx, int rightCount)
+inline __device__ void divideRightNode(Node* nodes, float* rightSide, int ord, int nodeIdx, int idx, int rightCount)
 {
 	Node* node = &nodes[nodeIdx];
 	rightSide += ord * 3 * rightCount;
@@ -413,7 +221,7 @@ __global__ void divideRight(Node* nodes, float* rightSide)
 	divideRightNode(nodes, rightSide, ord, nodeIdx, idx, dProps.rightCount);
 }
 
-inline __device__ __host__ void assignRightNodeMem(Node* nodes, float* rightSideMem, int nodeIdx, Properties props)
+inline __device__ void assignRightNodeMem(Node* nodes, float* rightSideMem, int nodeIdx, Properties props)
 {
 	Node* node = &nodes[nodeIdx];
 	int start = nodeIdx * props.rightCount * 6;
@@ -433,7 +241,7 @@ __global__ void assignRightSideMem(Node* nodes, float* rightSideMem)
 	assignRightNodeMem(nodes, rightSideMem, idx, dProps);
 }
 
-inline __device__ __host__ void mergeRightSideNode(Node* nodes, int idx, int nodeIdx)
+inline __device__ void mergeRightSideNode(Node* nodes, int idx, int nodeIdx)
 {
 	Node* parent = &nodes[nodeIdx];
 	Node* left = &nodes[LEFT(nodeIdx)];
@@ -456,27 +264,6 @@ __global__ void mergeRightSideLayer(Node* nodes, int startNode, int rightSidesCo
 	mergeRightSideNode(nodes, idx, nodeIdx);
 }
 
-void leftSideInit(float* leftSide, int size)
-{
-	for (int i = 0; i < size; i++)
-	{
-		leftSide[i] = 6;//(i+1)%26;
-	}
-}
-
-void showMemoryConsumption()
-{
-	size_t free_byte;
-	size_t total_byte;
-	ERRCHECK(cudaMemGetInfo(&free_byte, &total_byte));
-	double free_db = (double)free_byte;
-	double total_db = (double)total_byte;
-	double used_db = total_db - free_db;
-
-	printf("GPU memory usage: used = %f, free = %f MB, total = %f MB\n", used_db / 1024.0 / 1024.0, free_db / 1024.0 / 1024.0, total_db / 1024.0 / 1024.0);
-}
-
-
 void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSideMem, float* dRightSide, Properties props)
 {
 	divideLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, dLeftSide);
@@ -492,63 +279,6 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 	divideRight<<<BLOCKS(props.bottomNodes*props.rightCount),THREADS>>>(dNodes, dRightSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-}
-
-void assignHostRightSide(Properties props, Node* nodes, float* rightSideMem)
-{
-	for (int i = 0; i < props.heapNodes; i++)
-	{
-		assignRightNodeMem(nodes, rightSideMem, i, props);
-	}
-}
-
-void testDistributeInputAmongNodes()
-{
-	Properties props = getProperities(14, 1);
-	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float* leftSide;
-	float* rightSide;
-	float* dRightSideMem;
-	float* rightSideMem = new float[props.rightSizeMem];
-	generateTestEquation(14, 1, &leftSide, &rightSide);
-	Node* nodes = new Node[props.heapNodes];
-	memset(nodes, 0, props.heapNodes * sizeof(Node));
-	Node* dNodes = nullptr;
-	float* dLeftSide = nullptr;
-	float* dRightSide = nullptr;
-	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
-	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
-	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
-	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(float)*props.rightSizeMem));
-	distributeInputAmongNodes(dNodes, dLeftSide, dRightSideMem, dRightSide, props);
-	for (int start = PARENT(props.lastLevelStartIdx), nodesCount = props.beforeLastLevelNotBottomNodes; start > 0; nodesCount = (start + 1) / 2 , start = PARENT(start))//order matters
-	{
-		mergeRightSideLayer<< <BLOCKS(nodesCount*props.rightCount), THREADS >> >(dNodes, start, nodesCount * props.rightCount);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
-		mergeLeftChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
-		mergeRightChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
-	}
-	mergeRightSideLayer<< <1, props.rightCount >> >(dNodes, 0, props.rightCount);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	mergeLeftChild << <1, 1 >> >(dNodes, 0, 1);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	mergeRightChild << <1, 1 >> >(dNodes, 0, 1);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
-	ERRCHECK(cudaMemcpy(rightSideMem,dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
-	assignHostRightSide(props, nodes, rightSideMem);
-	printAllNodes(nodes, 0, props);
 }
 
 void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
@@ -637,34 +367,6 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 	ERRCHECK(cudaDeviceSynchronize());
 }
 
-void testRun()
-{
-	Properties props = getProperities(14, 1);
-	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float* leftSide;
-	float* rightSide;
-	float* rightSideMem = new float[dProps.rightSizeMem];
-	float* dRightSideMem;
-	generateTestEquation(14, 1, &leftSide, &rightSide);
-	Node* nodes = new Node[props.heapNodes];
-	memset(nodes, 0, props.heapNodes * sizeof(Node));
-	Node* dNodes = nullptr;
-	float* dLeftSide = nullptr;
-	float* dRightSide = nullptr;
-	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
-	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
-	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
-	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(float)*props.rightSizeMem));
-	run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
-	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
-	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
-	assignHostRightSide(props, nodes, rightSide);
-	printAllNodes(nodes, 0, props);
-}
-
 int main()
 {
 //		testRun();
@@ -677,82 +379,5 @@ int main()
 	//	testGaussianElimination();
 	//	getch();
 	//	return 0;
-	clock_t start, end;
-	//	int leftCount = (3*4+2)*10e5;
-	int leftCount = 3 * 3 + 2;
-	int rightCount = 1;
-	const Properties props = getProperities(leftCount, rightCount);
-	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 
-	float* leftSide = new float[props.leftSize];
-	//	float * rightSide = new float[rightSize];
-	Node* nodes = new Node[props.heapNodes];
-	Node* dNodes = nullptr;
-	float* dLeftSide = nullptr;
-	leftSideInit(leftSide, props.leftSize);
-	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
-	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
-	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	showMemoryConsumption();
-	start = clock();
-	divideLeft << <(props.bottomNodes + 512) / 512, 512 >> >(dNodes, dLeftSide);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	end = clock();
-	printf("time %f\n", (float)(end - start) / CLOCKS_PER_SEC);
-	divideFirstAndLast << <1, 1 >> >(dNodes, dLeftSide);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	mergeLeftChild << <1, 1 >> >(dNodes, PARENT(props.lastLevelStartIdx), 1);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	mergeRightChild << <1, 1 >> >(dNodes, PARENT(props.lastLevelStartIdx), 1);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
-	printNode(nodes[0]);
-	printNode(nodes[1]);
-	printNode(nodes[2]);
-	printNode(nodes[3]);
-	printNode(nodes[4]);
-	delete[] nodes;
-	cudaFree(dNodes);
-
-	ERRCHECK(cudaDeviceReset());
-
-	getch();
-	return 0;
 }
-
-void printAllNodes(Node* nodes, int nodesStart, Properties props)
-{
-	int powerOfTwo = (int)log2(nodesStart + 1) + 1;
-	for (int i = nodesStart; i < props.heapNodes; i++)
-	{
-		//		if (i == powerOfTwo)
-		//		{
-		//			printf("level %d\n", powerOfTwo);
-		//			powerOfTwo <<= 1;
-		//		}
-		Node node = nodes[i];
-		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
-		{
-			printf("%.1f %.1f %.1f %.1f %.1f %.1f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
-			for (int k = 0; k < props.rightCount; k++)
-			{
-				printf("%.0f ", node.x[j][k]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-	}
-}
-
-__device__ __host__ void printNode(Node node)
-{
-	for (int i = 0; i < 6; i++)
-		printf("%.1f %.1f %.1f %.1f %.1f %.1f\n", node.m[XY(i, 0)], node.m[XY(i, 1)], node.m[XY(i, 2)], node.m[XY(i, 3)], node.m[XY(i, 4)], node.m[XY(i, 5)]);
-	printf("\n");
-}
-
