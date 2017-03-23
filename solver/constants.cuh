@@ -12,7 +12,7 @@
 #define ROW_LENGTH 5
 #define FIRST_LVL_MAT_SIZE 5
 #define XY(x,y) x*6+y
-#define THREADS 512
+#define THREADS 32
 #define BLOCKS(N) (N+THREADS)/THREADS
 #define COLUMNS_PER_THREAD 1
 

@@ -283,18 +283,18 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 
 void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 {
-	forwardEliminationLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
+	forwardEliminationLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 1);
+	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	if (props.beforeLastLevelNodes > 0)
 	{
-		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 1);
+		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 2);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 1);
+		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 2);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 	}
@@ -337,7 +337,7 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 		mergeRightChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 2);
+		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 1);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 		forwardEliminationRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, start, nodesCount, 0, 2);
@@ -345,39 +345,42 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 		ERRCHECK(cudaDeviceSynchronize());
 	}
 	eliminateRoot(dNodes, props);
-	nodesCount = 2;
-	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
-	{
-		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 2);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
-	}
-	//root
-	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes, 0, 2);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	if (props.beforeLastLevelNodes > 0)
-	{
-		backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, dProps.beforeLastLevelNodes, 1, 1);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
-	}
-	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
+//	nodesCount = 2;
+//	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
+//	{
+//		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 2);
+//		ERRCHECK(cudaGetLastError());
+//		ERRCHECK(cudaDeviceSynchronize());
+//	}
+//	//root
+//	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes, 0, 2);
+//	ERRCHECK(cudaGetLastError());
+//	ERRCHECK(cudaDeviceSynchronize());
+//	if (props.beforeLastLevelNodes > 0)
+//	{
+//		backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, dProps.beforeLastLevelNodes, 1, 1);
+//		ERRCHECK(cudaGetLastError());
+//		ERRCHECK(cudaDeviceSynchronize());
+//	}
+//	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
+//	ERRCHECK(cudaGetLastError());
+//	ERRCHECK(cudaDeviceSynchronize());
 }
 
 int main()
 {
-//		testRun();
+//	float * left;
+//	float * right;
+//	generateTestEquation(14, 1, &left, &right);
+		testRun();
+		getch();
+		return 0;
+//	testDistributeInputAmongNodes();
+//	getch();
+//	return 0;
+//		ERRCHECK(cudaSetDevice(0));
+//		testGaussianElimination();
 //		getch();
 //		return 0;
-	testDistributeInputAmongNodes();
-	getch();
-	return 0;
-	//	ERRCHECK(cudaSetDevice(0));
-	//	testGaussianElimination();
-	//	getch();
-	//	return 0;
 
 }

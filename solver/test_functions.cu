@@ -87,8 +87,8 @@ void testRun()
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	float* leftSide;
 	float* rightSide;
-	float* rightSideMem = new float[dProps.rightSizeMem];
 	float* dRightSideMem;
+	float* rightSideMem = new float[dProps.rightSizeMem];
 	generateTestEquation(14, 1, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
@@ -105,7 +105,7 @@ void testRun()
 	run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
-	assignHostRightSide(props, nodes, rightSide);
+	assignHostRightSide(props, nodes, rightSideMem);
 	printAllNodes(nodes, 0, props);
 }
 

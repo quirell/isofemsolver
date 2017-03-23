@@ -40,12 +40,30 @@ void fillRightSide(float value, int row, float* rightSide, int rightCount)
 	}
 }
 
+
+void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i,int offset)
+{
+	int rightSideVal = 0;
+	for (int j = 0; j < 5; j++)
+	{
+		int solution = 1;//(i - 1) + j+offset; //solution is x(0)=1,x(1)=2,x(n-1)=n
+		rightSideVal += leftSide[i*5+j] * solution;
+	}
+	fillRightSide(rightSideVal, i, rightSide, rightCount);
+}
+
 void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
 {
 	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
 	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
-	for (int i = 0; i < leftCount * 5; i++)
-		leftSide[i] = 6;// i / 5 + 1;
+	for (int i = 0; i < leftCount * 5; i+=5)
+	{
+		leftSide[i] = 1;
+		leftSide[i+1] = 1;
+		leftSide[i+2] = 2;
+		leftSide[i+3] = 1;
+		leftSide[i+4] = 1;
+	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
 	leftSide[5] = 0;
@@ -53,37 +71,53 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	leftSide[leftCount * 5 - 2] = 0;
 	leftSide[leftCount * 5 - 1] = 0;
 
-	for (int i = 2; i < leftCount - 2; i++)
+	for (int i = 0; i < leftCount; i++)
 	{
-		int rightSideVal = 0;
-		for (int j = 0; j < 5; j++)
-		{
-			int solution = (i - 1) + j; //solution is x(0)=1,x(1)=2,x(n-1)=n
-			rightSideVal += 6 * solution;
-		}
-		fillRightSide(rightSideVal, i, rightSide, rightCount);
+		computeRightSide(rightCount, leftSide, rightSide, i,0);
 	}
-	fillRightSide(1 * 6 + 2 * 6 + 3 * 6, 0, rightSide, rightCount);
-	fillRightSide(1 * 6 + 2 * 6 + 3 * 6 + 4 * 6, 1, rightSide, rightCount);
-	fillRightSide((leftCount - 3) * 6 + (leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 2, rightSide, rightCount);
-	fillRightSide((leftCount - 2) * 6 + (leftCount - 1) * 6 + leftCount * 6, leftCount - 1, rightSide, rightCount);
+//	computeRightSide(rightCount, leftSide, rightSide, 0, 2);
+//	computeRightSide(rightCount, leftSide, rightSide, 1, 1);
+//	computeRightSide(rightCount, leftSide, rightSide, leftCount-2, 2);
+//	computeRightSide(rightCount, leftSide, rightSide, leftCount-1, 2);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-	//		for (int i = 0; i < leftCount; i++)
-	//		{
-	//			printf("%d:", i + 1);
-	//			for (int j = 0; j < 5; j++)
-	//			{
-	//				printf("%.0f ", leftSide[i * 5 + j]);
-	//			}
-	//			printf(" |  ");
-	//			for (int j = 0; j < rightCount; j++)
-	//			{
-	//				printf("%.0f ", rightSide[i * rightCount + j]);
-	//			}
-	//			printf("\n");
-	//		}
-	//		getch();
+//	for (int i = 0; i < leftCount; i++)
+//	{
+//		printf("%d:", i + 1);
+//		for (int j = 0; j < 5; j++)
+//		{
+//			printf("%.0f ", leftSide[i * 5 + j]);
+//		}
+//		printf(" |  ");
+//		for (int j = 0; j < rightCount; j++)
+//		{
+//			printf("%.0f ", rightSide[i * rightCount + j]);
+//		}
+//		printf("\n");
+//	}
+//	int before = 0;
+//	int after = 13;
+//	for (int i = 0; i < leftCount; i++)
+//	{
+//		for (int i = 0; i < before; i++)
+//			printf("0 ");
+//		for (int j = 0; j < 5; j++)
+//		{
+//			printf("%.0f ", leftSide[i * 5 + j]);
+//		}
+//		for (int i = 0; i < after; i++)
+//			printf("0 ");
+//		printf(" |  ");
+//		for (int j = 0; j < rightCount; j++)
+//		{
+//			printf("%.0f ", rightSide[i * rightCount + j]);
+//		}
+//		printf("\n");
+//		before++;
+//		after--;
+//	}
+//
+//	getch();
 }
 
 
