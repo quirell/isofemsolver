@@ -125,23 +125,31 @@ __global__ void assignTestRightSide(Node* node, float* x)
 
 void testGaussianElimination()
 {
-	Properties props = getProperities(1, 4);
+	Properties props = getProperities(6, 4);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	Node node;
-	float m[] = {
-		1, 1, -2, 1, 3, -1,
-		2, -1, 1, 2, 1, -3,
-		1, 3, -3, -1, 2, 1,
-		5, 2, -1, -1, 2, 1,
-		-3, -1, 2, 3, 1, 3,
-		4, 3, 1, -6, -3, -2
-	};
+//	float m[] = {
+//		1, 1, -2, 1, 3, -1,
+//		2, -1, 1, 2, 1, -3,
+//		1, 3, -3, -1, 2, 1,
+//		5, 2, -1, -1, 2, 1,
+//		-3, -1, 2, 3, 1, 3,
+//		4, 3, 1, -6, -3, -2
+//	};
+//	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
+	float m[] = { 1.0 , 0.0 , -0.5 , 0.5 , -0.5 , -0.5 ,
+		0.0 , 1.0 , -0.5 , 0.5 , 0.5 , 0.5 ,
+		-0.5 , -0.5 , 0.5 , 3.5 , 0.0 , 0.0 ,
+		0.5 , 0.5 , 3.5 , 0.5 , 0.0 , 0.0 ,
+		-0.5 , 0.5 , 0.0 , 0.0 , 2.5 , 0.5 ,
+		-0.5 , 0.5 , 0.0 , 0.0 , 0.5 , 2.5 };
+	float x[] = { 0,0,0,0,0,0,0,0,2,2,2,2,4,4,4,4,4,4,4,4,2,2,2,2 };
 	memcpy(node.m, m, sizeof(float) * MSIZE);
+	assignHostRightSide(props, &node, x);
 	Node* dNode;
-	printNode(node);
+	printNode(node,props.rightCount);
 	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
 	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
-	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
 	float* dX;
 	ERRCHECK(cudaMalloc(&dX, sizeof(x)));
 	ERRCHECK(cudaMemcpy(dX, &x, sizeof(x), cudaMemcpyHostToDevice));
@@ -152,14 +160,16 @@ void testGaussianElimination()
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	forwardEliminationRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 6);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
-	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
-	ERRCHECK(cudaGetLastError());
-	ERRCHECK(cudaDeviceSynchronize());
+//	ERRCHECK(cudaGetLastError());
+//	ERRCHECK(cudaDeviceSynchronize());
+//	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
+//	ERRCHECK(cudaGetLastError());
+//	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(&node, dNode, sizeof(Node), cudaMemcpyDeviceToHost));
-	printNode(node);
+	assignHostRightSide(props, &node, x);
+	printNode(node,props.rightCount);
 	ERRCHECK(cudaMemcpy(x, dX, sizeof(x), cudaMemcpyDeviceToHost));
+	printNode(node, props.rightCount);
 	float c[] = {1,-2,3,4,2,-1};
 	for (int i = 0; i < 6; i++)
 	{

@@ -17,9 +17,11 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
 }
 
 void printAllNodes(Node* nodes, int nodesStart, Properties props);
-__device__ __host__ void printNode(Node node);
+__device__ __host__ void printNode(Node node, int rightCount);
 
 void fillRightSide(float value, int row, float* rightSide, int rightCount);
 void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr);
 
 void showMemoryConsumption();
+
+void printRow(float * m, int start, int count);

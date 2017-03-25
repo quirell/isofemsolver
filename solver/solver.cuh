@@ -17,3 +17,5 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 void eliminateFirstRow(Node* dNodes, Properties props);
 void eliminateRoot(Node* dNodes, Properties props);
 void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, float* dRightSideMem);
+inline __device__ __host__ void assignParentToChildren(Node* nodes, int nodeIdx);
+__global__ void assignParentToChildrenLayer(Node* nodes, int startNode, int nodesCount);

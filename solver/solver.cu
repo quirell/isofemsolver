@@ -44,15 +44,22 @@ __global__ void forwardEliminationLeft(Node* nodes, int startIdx, int nodesCount
 	{
 		for (int col = row + 1; col < 6; col++) //from element after diagonal
 		{
+			//printf("%.1f/%.1f = ", m[XY(row,col)], m[XY(row, row)]);
 			m[XY(row, col)] /= m[XY(row, row)];
+//			printf("%.2f  ", m[XY(row, col)]);
 		}
+//		printf("\n");
 		for (int rowBelow = row + 1; rowBelow < 6; rowBelow++)
 		{
 			for (int col = row + 1; col < 6; col++)
 			{
+				//printf("%.1f-%.1f*%.1f = ", m[XY(rowBelow, col)], m[XY(rowBelow, row)], m[XY(row, col)]);
 				m[XY(rowBelow, col)] -= m[XY(rowBelow, row)] * m[XY(row, col)];
+//				printf("%.2f  ", m[XY(rowBelow, col)]);
 			}
+//			printf("\n");
 		}
+//		printf("\n\n");
 	}
 }
 
@@ -264,6 +271,31 @@ __global__ void mergeRightSideLayer(Node* nodes, int startNode, int rightSidesCo
 	mergeRightSideNode(nodes, idx, nodeIdx);
 }
 
+inline __device__ __host__ void assignParentToChildren(Node* nodes, int nodeIdx)
+{
+	Node* parent = &nodes[nodeIdx];
+	Node* left = &nodes[LEFT(nodeIdx)];
+	Node* right = &nodes[RIGHT(nodeIdx)]; 
+	left->x[2] = parent->x[2]; //it's enough to assign pointers because it won't be modified 
+	left->x[3] = parent->x[3];
+	left->x[4] = parent->x[0];
+	left->x[5] = parent->x[1];
+
+	right->x[2] = parent->x[0];
+	right->x[3] = parent->x[1];
+	right->x[4] = parent->x[4];
+	right->x[5] = parent->x[5];
+}
+
+ __global__ void assignParentToChildrenLayer(Node* nodes,int startNode,int nodesCount)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx >= nodesCount)
+		return;
+	idx += startNode;
+	assignParentToChildren(nodes, idx);
+}
+
 void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSideMem, float* dRightSide, Properties props)
 {
 	divideLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, dLeftSide);
@@ -303,6 +335,8 @@ void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 void eliminateRoot(Node* dNodes, Properties props)
 {
 	mergeRightSideLayer << <1, props.rightCount>> >(dNodes, 0, props.rightCount);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 	mergeLeftChild << <1,1>> >(dNodes, 0, 1);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
@@ -312,10 +346,13 @@ void eliminateRoot(Node* dNodes, Properties props)
 	forwardEliminationLeft << <1,1>> >(dNodes, 0, 1, 0, 6);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationRight << <BLOCKS(1*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, 0, 1, 0, 6);
+	forwardEliminationRight << <BLOCKS((props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, 0, 1, 0, 6);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	backwardSubstitutionRight<<<BLOCKS(1*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, 0, 1, 0, 6);
+	backwardSubstitutionRight<<<BLOCKS((props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, 0, 1, 0, 4);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
+	assignParentToChildrenLayer<<<1,1>>>(dNodes, 0, 1);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 }
@@ -337,7 +374,7 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 		mergeRightChild << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 1);
+		forwardEliminationLeft << <BLOCKS(nodesCount), THREADS >> >(dNodes, start, nodesCount, 0, 2);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 		forwardEliminationRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, start, nodesCount, 0, 2);
@@ -345,26 +382,33 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 		ERRCHECK(cudaDeviceSynchronize());
 	}
 	eliminateRoot(dNodes, props);
-//	nodesCount = 2;
-//	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
-//	{
-//		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 2);
-//		ERRCHECK(cudaGetLastError());
-//		ERRCHECK(cudaDeviceSynchronize());
-//	}
-//	//root
-//	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes, 0, 2);
-//	ERRCHECK(cudaGetLastError());
-//	ERRCHECK(cudaDeviceSynchronize());
-//	if (props.beforeLastLevelNodes > 0)
-//	{
-//		backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, dProps.beforeLastLevelNodes, 1, 1);
-//		ERRCHECK(cudaGetLastError());
-//		ERRCHECK(cudaDeviceSynchronize());
-//	}
-//	backwardSubstitutionRight << <BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, dProps.bottomNodes, 1, 1);
-//	ERRCHECK(cudaGetLastError());
-//	ERRCHECK(cudaDeviceSynchronize());
+	nodesCount = 2;
+	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
+	{
+		
+		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 1);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		assignParentToChildrenLayer << <BLOCKS(nodesCount),THREADS>> >(dNodes, start, nodesCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+	}
+
+	backwardSubstitutionRight <<<BLOCKS(props.beforeLastLevelNotBottomNodes*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes, 0, 1);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
+	if (props.beforeLastLevelNodes > 0)
+	{
+		backwardSubstitutionRight << <BLOCKS(props.beforeLastLevelNodes*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 1);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+	}
+	assignParentToChildrenLayer << <BLOCKS(props.beforeLastLevelNotBottomNodes), THREADS >> >(dNodes, PARENT(props.lastLevelStartIdx), props.beforeLastLevelNotBottomNodes);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
+	backwardSubstitutionRight << <BLOCKS(props.lastLevelNodes*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, props.lastLevelNodes, 1, 1);
+	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 }
 
 int main()

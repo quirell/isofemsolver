@@ -14,10 +14,10 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 		Node node = nodes[i];
 		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
 		{
-			printf("%.1f %.1f %.1f %.1f %.1f %.1f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
+			printf("%.2f %.2f %.2f %.2f %.2f %.2f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
 			for (int k = 0; k < props.rightCount; k++)
 			{
-				printf("%.0f ", node.x[j][k]);
+				printf("%.2f ", node.x[j][k]);
 			}
 			printf("\n");
 		}
@@ -25,10 +25,16 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 	}
 }
 
-__device__ __host__ void printNode(Node node)
+__device__ __host__ void printNode(Node node,int rightCount)
 {
-	for (int i = 0; i < 6; i++)
-		printf("%.1f %.1f %.1f %.1f %.1f %.1f\n", node.m[XY(i, 0)], node.m[XY(i, 1)], node.m[XY(i, 2)], node.m[XY(i, 3)], node.m[XY(i, 4)], node.m[XY(i, 5)]);
+	for (int i = 0; i < 6; i++) {
+		printf("%.2f %.2f %.2f %.2f %.2f %.2f | ", node.m[XY(i, 0)], node.m[XY(i, 1)], node.m[XY(i, 2)], node.m[XY(i, 3)], node.m[XY(i, 4)], node.m[XY(i, 5)]);
+		for (int k = 0; k < rightCount; k++)
+		{
+			printf("%.2f ", node.x[i][k]);
+		}
+		printf("\n");
+	}
 	printf("\n");
 }
 
@@ -52,17 +58,23 @@ void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i,i
 	fillRightSide(rightSideVal, i, rightSide, rightCount);
 }
 
+__device__ void printRow(float * m, int start, int count)
+{
+	for (int i = start; i < start + count; i++)
+		printf("%.1f ", m[i]);
+	printf("\n");
+}
 void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
 {
 	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
 	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
 	for (int i = 0; i < leftCount * 5; i+=5)
 	{
-		leftSide[i] = 1;
-		leftSide[i+1] = 1;
-		leftSide[i+2] = 2;
-		leftSide[i+3] = 1;
-		leftSide[i+4] = 1;
+		leftSide[i] = 2;
+		leftSide[i+1] = 3;
+		leftSide[i+2] = 4;
+		leftSide[i+3] = 3;
+		leftSide[i+4] = 2;
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
@@ -74,27 +86,25 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	for (int i = 0; i < leftCount; i++)
 	{
 		computeRightSide(rightCount, leftSide, rightSide, i,0);
+//		fillRightSide(0, i, rightSide, rightCount);
 	}
-//	computeRightSide(rightCount, leftSide, rightSide, 0, 2);
-//	computeRightSide(rightCount, leftSide, rightSide, 1, 1);
-//	computeRightSide(rightCount, leftSide, rightSide, leftCount-2, 2);
-//	computeRightSide(rightCount, leftSide, rightSide, leftCount-1, 2);
+//	fillRightSide(leftCount, leftCount-1, rightSide, rightCount);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-//	for (int i = 0; i < leftCount; i++)
-//	{
-//		printf("%d:", i + 1);
-//		for (int j = 0; j < 5; j++)
-//		{
-//			printf("%.0f ", leftSide[i * 5 + j]);
-//		}
-//		printf(" |  ");
-//		for (int j = 0; j < rightCount; j++)
-//		{
-//			printf("%.0f ", rightSide[i * rightCount + j]);
-//		}
-//		printf("\n");
-//	}
+	for (int i = 0; i < leftCount; i++)
+	{
+		printf("%d:", i + 1);
+		for (int j = 0; j < 5; j++)
+		{
+			printf("%.0f ", leftSide[i * 5 + j]);
+		}
+		printf(" |  ");
+		for (int j = 0; j < rightCount; j++)
+		{
+			printf("%.0f ", rightSide[i * rightCount + j]);
+		}
+		printf("\n");
+	}
 //	int before = 0;
 //	int after = 13;
 //	for (int i = 0; i < leftCount; i++)
