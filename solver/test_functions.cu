@@ -34,13 +34,13 @@ void leftSideInit(float* leftSide, int size)
 
 void testDistributeInputAmongNodes()
 {
-	Properties props = getProperities(14, 1);
+	Properties props = getProperities(17, 1);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	float* leftSide;
 	float* rightSide;
 	float* dRightSideMem;
 	float* rightSideMem = new float[props.rightSizeMem];
-	generateTestEquation(14, 1, &leftSide, &rightSide);
+	generateTestEquation(17, 1, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;
@@ -83,13 +83,14 @@ void testDistributeInputAmongNodes()
 
 void testRun()
 {
-	Properties props = getProperities(14, 1);
+	const int size = 11;
+	Properties props = getProperities(size, 1);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	float* leftSide;
 	float* rightSide;
 	float* dRightSideMem;
 	float* rightSideMem = new float[dProps.rightSizeMem];
-	generateTestEquation(14, 1, &leftSide, &rightSide);
+	generateTestEquation(size, 1, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;

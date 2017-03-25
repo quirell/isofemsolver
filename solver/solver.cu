@@ -315,10 +315,10 @@ void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSide
 
 void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 {
-	forwardEliminationLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
+	forwardEliminationLeft << <BLOCKS(props.lastLevelNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.lastLevelNodes, 1, 2);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	forwardEliminationRight << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, props.lastLevelStartIdx, props.bottomNodes, 1, 2);
+	forwardEliminationRight << <BLOCKS(props.lastLevelNodes*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.lastLevelStartIdx, props.lastLevelNodes, 1, 2);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	if (props.beforeLastLevelNodes > 0)
@@ -326,7 +326,7 @@ void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 		forwardEliminationLeft << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 2);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 2);
+		forwardEliminationRight << <BLOCKS(props.beforeLastLevelNodes*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >> >(dNodes, props.remainingNodes, props.beforeLastLevelNodes, 1, 2);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 	}
