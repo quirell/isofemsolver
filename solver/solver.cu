@@ -191,11 +191,11 @@ __global__ void divideLeft(Node* nodes, float* leftSide)
 __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 {
 	int nodeIdx = dProps.lastLevelStartIdx;
-	nodes[dProps.remainingNodes].m[XY(2, 3)] = leftSide[2];
-	nodes[dProps.remainingNodes].m[XY(2, 2)] = leftSide[3];
+	nodes[nodeIdx].m[XY(2, 3)] = leftSide[2];
+	nodes[nodeIdx].m[XY(2, 2)] = leftSide[3];
 
-	nodes[dProps.remainingNodes].m[XY(3, 3)] = leftSide[6];
-	nodes[dProps.remainingNodes].m[XY(3, 2)] = leftSide[7];
+	nodes[nodeIdx].m[XY(3, 3)] = leftSide[6];
+	nodes[nodeIdx].m[XY(3, 2)] = leftSide[7];
 
 	nodeIdx = (dProps.beforeLastLevelNodes == 0) * (dProps.heapNodes - 1) + (dProps.beforeLastLevelNodes != 0) * (dProps.heapNodes - dProps.lastLevelNodes - 1);
 	nodes[nodeIdx].m[XY(4, 4)] = leftSide[dProps.leftSize - 25 + 17];
@@ -203,7 +203,7 @@ __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 
 	nodes[nodeIdx].m[XY(5, 4)] = leftSide[dProps.leftSize - 25 + 21];
 	nodes[nodeIdx].m[XY(5, 5)] = leftSide[dProps.leftSize - 25 + 22];
-	//printf("|%d %d|\n", dProps.lastLevelStartIdx, nodeIdx);
+//	printf("|%d %d|\n", dProps.lastLevelStartIdx, nodeIdx);
 }
 
 inline __device__ void divideRightNode(Node* nodes, float* rightSide, int ord, int nodeIdx, int idx, int rightCount)
@@ -382,7 +382,7 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 		ERRCHECK(cudaDeviceSynchronize());
 	}
 	eliminateRoot(dNodes, props);
-	nodesCount = 2;
+	nodesCount = props.heapNodes == 5 ? 1 : 2; //for smallest size tree is 1, otherwise 2
 	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
 	{
 		
