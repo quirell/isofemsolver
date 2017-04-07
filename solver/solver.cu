@@ -192,11 +192,11 @@ __global__ void divideLeft(Node* nodes, float* leftSide)
 __global__ void divideFirstAndLast(Node* nodes, float* leftSide)
 {
 	int nodeIdx = dProps.lastLevelStartIdx;
-	nodes[nodeIdx].m[XY(2, 3)] = leftSide[2];
-	nodes[nodeIdx].m[XY(2, 2)] = leftSide[3];
+	nodes[nodeIdx].m[XY(2, 2)] = leftSide[2];
+	nodes[nodeIdx].m[XY(2, 3)] = leftSide[3];
 
-	nodes[nodeIdx].m[XY(3, 3)] = leftSide[6];
-	nodes[nodeIdx].m[XY(3, 2)] = leftSide[7];
+	nodes[nodeIdx].m[XY(3, 2)] = leftSide[6];
+	nodes[nodeIdx].m[XY(3, 3)] = leftSide[7];
 
 	nodeIdx = (dProps.beforeLastLevelNodes == 0) * (dProps.heapNodes - 1) + (dProps.beforeLastLevelNodes != 0) * (dProps.heapNodes - dProps.lastLevelNodes - 1);
 	nodes[nodeIdx].m[XY(4, 4)] = leftSide[dProps.leftSize - 25 + 17];
@@ -501,7 +501,7 @@ int main()
 //		float * left;
 //		float * right;
 //		generateTestEquation(14, 1, &left, &right);
-			testRun(14);
+			testRun(1025);
 //	testMultipleRun(1,1022);
 //	getch();
 	//	testDistributeInputAmongNodes();

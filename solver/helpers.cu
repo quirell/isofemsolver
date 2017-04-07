@@ -14,10 +14,10 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 		Node node = nodes[i];
 		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
 		{
-			printf("%.5f %.5f %.5f %.5f %.5f %.5f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
+			printf("%.2f %.2f %.2f %.2f %.2f %.2f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
 			for (int k = 0; k < props.rightCount; k++)
 			{
-				printf("%.5f ", node.x[j][k]);
+				printf("%.2f ", node.x[j][k]);
 			}
 			printf("\n");
 		}
