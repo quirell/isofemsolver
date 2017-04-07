@@ -3,6 +3,7 @@
 #include <device_launch_parameters.h>
 #include "helpers.cuh"
 #include "solver.cuh"
+#include <ctime>
 //copied from solver.cuh assignRightNodeMem
 void assignRightNodeMemHost(Node* nodes, float* rightSideMem, int nodeIdx, Properties props)
 {
@@ -81,16 +82,16 @@ void testDistributeInputAmongNodes()
 	printAllNodes(nodes, 0, props);
 }
 
-void testRun()
+void testRun(const int size)
 {
-	const int size = 11;
-	Properties props = getProperities(size, 1);
+	const int rsize = 1;
+	Properties props = getProperities(size, rsize);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float* leftSide;
-	float* rightSide;
-	float* dRightSideMem;
+	float* leftSide = nullptr;
+	float* rightSide = nullptr;
+	float* dRightSideMem = nullptr;
 	float* rightSideMem = new float[dProps.rightSizeMem];
-	generateTestEquation(size, 1, &leftSide, &rightSide);
+	generateTestEquation(size, rsize, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;
@@ -108,8 +109,26 @@ void testRun()
 	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, nodes, rightSideMem);
 	printAllNodes(nodes, 0, props);
+//	delete [] leftSide;
+//	delete [] rightSide;
+//	delete [] rightSideMem;
+//	delete [] nodes;
+	ERRCHECK(cudaFree(dRightSide));
+	ERRCHECK(cudaFree(dRightSideMem));
+	ERRCHECK(cudaFree(dNodes));
+	ERRCHECK(cudaFree(dLeftSide));
 }
 
+
+void testMultipleRun(int n, int size)
+{
+	clock_t start, end;
+	start = clock();
+	for (int i = 0; i < n; i++)
+		testRun(size);
+	end = clock();
+	printf("time %f\n", (float)(end - start) / CLOCKS_PER_SEC);
+}
 
 __global__ void assignTestRightSide(Node* node, float* x)
 {
@@ -129,26 +148,26 @@ void testGaussianElimination()
 	Properties props = getProperities(6, 4);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	Node node;
-//	float m[] = {
-//		1, 1, -2, 1, 3, -1,
-//		2, -1, 1, 2, 1, -3,
-//		1, 3, -3, -1, 2, 1,
-//		5, 2, -1, -1, 2, 1,
-//		-3, -1, 2, 3, 1, 3,
-//		4, 3, 1, -6, -3, -2
-//	};
-//	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
-	float m[] = { 1.0 , 0.0 , -0.5 , 0.5 , -0.5 , -0.5 ,
+	//	float m[] = {
+	//		1, 1, -2, 1, 3, -1,
+	//		2, -1, 1, 2, 1, -3,
+	//		1, 3, -3, -1, 2, 1,
+	//		5, 2, -1, -1, 2, 1,
+	//		-3, -1, 2, 3, 1, 3,
+	//		4, 3, 1, -6, -3, -2
+	//	};
+	//	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
+	float m[] = {1.0 , 0.0 , -0.5 , 0.5 , -0.5 , -0.5 ,
 		0.0 , 1.0 , -0.5 , 0.5 , 0.5 , 0.5 ,
 		-0.5 , -0.5 , 0.5 , 3.5 , 0.0 , 0.0 ,
 		0.5 , 0.5 , 3.5 , 0.5 , 0.0 , 0.0 ,
 		-0.5 , 0.5 , 0.0 , 0.0 , 2.5 , 0.5 ,
-		-0.5 , 0.5 , 0.0 , 0.0 , 0.5 , 2.5 };
-	float x[] = { 0,0,0,0,0,0,0,0,2,2,2,2,4,4,4,4,4,4,4,4,2,2,2,2 };
+		-0.5 , 0.5 , 0.0 , 0.0 , 0.5 , 2.5};
+	float x[] = {0,0,0,0,0,0,0,0,2,2,2,2,4,4,4,4,4,4,4,4,2,2,2,2};
 	memcpy(node.m, m, sizeof(float) * MSIZE);
 	assignHostRightSide(props, &node, x);
 	Node* dNode;
-	printNode(node,props.rightCount);
+	printNode(node, props.rightCount);
 	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
 	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
 	float* dX;
@@ -161,14 +180,14 @@ void testGaussianElimination()
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	forwardEliminationRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 6);
-//	ERRCHECK(cudaGetLastError());
-//	ERRCHECK(cudaDeviceSynchronize());
-//	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
-//	ERRCHECK(cudaGetLastError());
-//	ERRCHECK(cudaDeviceSynchronize());
+	//	ERRCHECK(cudaGetLastError());
+	//	ERRCHECK(cudaDeviceSynchronize());
+	//	backwardSubstitutionRight << <1, 4 / COLUMNS_PER_THREAD >> >(dNode, 0, 1, 0, 4);
+	//	ERRCHECK(cudaGetLastError());
+	//	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(&node, dNode, sizeof(Node), cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, &node, x);
-	printNode(node,props.rightCount);
+	printNode(node, props.rightCount);
 	ERRCHECK(cudaMemcpy(x, dX, sizeof(x), cudaMemcpyDeviceToHost));
 	printNode(node, props.rightCount);
 	float c[] = {1,-2,3,4,2,-1};

@@ -2,7 +2,8 @@
 #pragma once
 
 void testDistributeInputAmongNodes();
-void testRun();
+void testRun(const int size = 11);
+void testMultipleRun(int n = 1, int size = 14);
 void testGaussianElimination();
 __global__ void assignTestRightSide(Node* node, float* x);
 void leftSideInit(float* leftSide, int size);

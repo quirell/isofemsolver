@@ -1,4 +1,5 @@
 #include "constants.cuh"
+
 __global__ void backwardSubstitutionRight(Node* nodes, int startIdx, int nodesCount, int end, int elim);
 __global__ void forwardEliminationLeft(Node* nodes, int startIdx, int nodesCount, int start, int elim);
 __global__ void forwardEliminationRight(Node* nodes, int startIdx, int nodesCount, int rowStart, int elim);

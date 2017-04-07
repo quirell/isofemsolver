@@ -14,10 +14,10 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 		Node node = nodes[i];
 		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
 		{
-			printf("%.2f %.2f %.2f %.2f %.2f %.2f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
+			printf("%.5f %.5f %.5f %.5f %.5f %.5f | ", node.m[XY(j, 0)], node.m[XY(j, 1)], node.m[XY(j, 2)], node.m[XY(j, 3)], node.m[XY(j, 4)], node.m[XY(j, 5)]);
 			for (int k = 0; k < props.rightCount; k++)
 			{
-				printf("%.2f ", node.x[j][k]);
+				printf("%.5f ", node.x[j][k]);
 			}
 			printf("\n");
 		}
@@ -52,7 +52,8 @@ void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i,i
 	int rightSideVal = 0;
 	for (int j = 0; j < 5; j++)
 	{
-		int solution = 1;//(i - 1) + j+offset; //solution is x(0)=1,x(1)=2,x(n-1)=n
+//		int solution = 1;
+		int solution = i - 1 + j + offset;//solution is x(0)=1,x(1)=2,x(n-1)=n
 		rightSideVal += leftSide[i*5+j] * solution;
 	}
 	fillRightSide(rightSideVal, i, rightSide, rightCount);
@@ -66,15 +67,15 @@ __device__ void printRow(float * m, int start, int count)
 }
 void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
 {
-	float* leftSide = (float*)malloc(sizeof(float) * leftCount * 5);
-	float* rightSide = (float*)malloc(sizeof(float) * rightCount * leftCount);
+	float* leftSide = new float[leftCount * 5];
+	float* rightSide = new float[rightCount * leftCount];
 	for (int i = 0; i < leftCount * 5; i+=5)
 	{
-		leftSide[i] = 2;
-		leftSide[i+1] = 3;
-		leftSide[i+2] = 4;
-		leftSide[i+3] = 3;
-		leftSide[i+4] = 2;
+		leftSide[i] = 1;
+		leftSide[i+1] = 1;
+		leftSide[i+2] = 5;
+		leftSide[i+3] = 1;
+		leftSide[i+4] = 1;
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
@@ -86,25 +87,24 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	for (int i = 0; i < leftCount; i++)
 	{
 		computeRightSide(rightCount, leftSide, rightSide, i,0);
-//		fillRightSide(0, i, rightSide, rightCount);
 	}
-//	fillRightSide(leftCount, leftCount-1, rightSide, rightCount);
+//	fillRightSide(14, i, rightSide, rightCount);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-//	for (int i = 0; i < leftCount; i++)
-//	{
-//		printf("%d:", i + 1);
-//		for (int j = 0; j < 5; j++)
-//		{
-//			printf("%.0f ", leftSide[i * 5 + j]);
-//		}
-//		printf(" |  ");
-//		for (int j = 0; j < rightCount; j++)
-//		{
-//			printf("%.0f ", rightSide[i * rightCount + j]);
-//		}
-//		printf("\n");
-//	}
+	for (int i = 0; i < leftCount; i++)
+	{
+		printf("%d:", i + 1);
+		for (int j = 0; j < 5; j++)
+		{
+			printf("%.0f ", leftSide[i * 5 + j]);
+		}
+		printf(" |  ");
+		for (int j = 0; j < rightCount; j++)
+		{
+			printf("%.0f ", rightSide[i * rightCount + j]);
+		}
+		printf("\n");
+	}
 //	int before = 0;
 //	int after = leftCount-1;
 //	for (int i = 0; i < leftCount; i++)
@@ -126,7 +126,7 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 //		before++;
 //		after--;
 //	}
-//
+
 //	getch();
 }
 
@@ -142,3 +142,15 @@ void showMemoryConsumption()
 
 	printf("GPU memory usage: used = %f, free = %f MB, total = %f MB\n", used_db / 1024.0 / 1024.0, free_db / 1024.0 / 1024.0, total_db / 1024.0 / 1024.0);
 }
+
+//inline
+//cudaError_t checkCuda(cudaError_t result)
+//{
+//#if defined(DEBUG) || defined(_DEBUG)
+//	if (result != cudaSuccess) {
+//		fprintf(stderr, "CUDA Runtime Error: %sn", cudaGetErrorString(result));
+//		assert(result == cudaSuccess);
+//	}
+//#endif
+//	return result;
+//}

@@ -16,6 +16,8 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
 	}
 }
 
+
+
 void printAllNodes(Node* nodes, int nodesStart, Properties props);
 __device__ __host__ void printNode(Node node, int rightCount);
 
