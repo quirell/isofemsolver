@@ -27,3 +27,5 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 void showMemoryConsumption();
 
 void printRow(float * m, int start, int count);
+
+float * readBmpWithMargin(char* filename);

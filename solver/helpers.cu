@@ -154,3 +154,78 @@ void showMemoryConsumption()
 //#endif
 //	return result;
 //}
+
+
+//returns transposed bitmap
+float * readBmpWithMargin(char* filename)
+{
+	unsigned char* texels;
+	int width, height;
+	FILE* fd;
+	fd = fopen(filename, "rb");
+	if (fd == NULL)
+	{
+		printf("Error: fopen failed\n");
+		throw "Bitmap opening failed";
+	}
+
+	unsigned char header[54];
+
+	// Read header
+	fread(header, sizeof(unsigned char), 54, fd);
+
+	// Capture dimensions
+	width = *(int*)&header[18];
+	height = *(int*)&header[22];
+
+	int padding = 0;
+
+	// Calculate padding
+	while ((width * 3 + padding) % 4 != 0)
+	{
+		padding++;
+	}
+
+	// Compute new width, which includes padding
+	int widthnew = width * 3 + padding;
+
+	//	// Allocate memory to store image data (non-padded)
+	//	texels = (unsigned char *)malloc(width * height * 3 * sizeof(unsigned char));
+	//	if (texels == NULL)
+	//	{
+	//		printf("Error: Malloc failed\n");
+	//		return;
+	//	}
+	
+	float* bitmap = nullptr;
+	bitmap = new float[width * height];
+
+	// Allocate temporary memory to read widthnew size of data
+
+	unsigned char* data = (unsigned char *)malloc(widthnew * sizeof(unsigned int));
+	//input (bmp stores bitmap upside down)
+	// 3. 3 3 
+	// 2. 2 2
+	// 1. 1 1
+	//output
+	// 1. 1 1
+	// 2. 2 2
+	// 3. 3 3
+	// Read row by row of data and remove padded data.
+	for (int i = height - 1; i > 0; i--)
+	{
+		// Read widthnew length of data
+		fread(data, sizeof(unsigned char), widthnew, fd);
+
+		// Retain width length of data, and swizzle RB component.
+		// BMP stores in BGR format, my usecase needs RGB format
+		for (int j = 0; j < width * 3; j += 3)
+		{
+			int index = j / 3 + width*i;
+			bitmap[index] = 0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j];
+		}
+	}
+	free(data);
+	fclose(fd);
+	return bitmap;
+}
