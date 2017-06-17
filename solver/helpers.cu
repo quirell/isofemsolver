@@ -91,20 +91,20 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 //	fillRightSide(14, i, rightSide, rightCount);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-	for (int i = 0; i < leftCount; i++)
-	{
-		printf("%d:", i + 1);
-		for (int j = 0; j < 5; j++)
-		{
-			printf("%.0f ", leftSide[i * 5 + j]);
-		}
-		printf(" |  ");
-		for (int j = 0; j < rightCount; j++)
-		{
-			printf("%.0f ", rightSide[i * rightCount + j]);
-		}
-		printf("\n");
-	}
+//	for (int i = 0; i < leftCount; i++)
+//	{
+//		printf("%d:", i + 1);
+//		for (int j = 0; j < 5; j++)
+//		{
+//			printf("%.0f ", leftSide[i * 5 + j]);
+//		}
+//		printf(" |  ");
+//		for (int j = 0; j < rightCount; j++)
+//		{
+//			printf("%.0f ", rightSide[i * rightCount + j]);
+//		}
+//		printf("\n");
+//	}
 //	int before = 0;
 //	int after = leftCount-1;
 //	for (int i = 0; i < leftCount; i++)

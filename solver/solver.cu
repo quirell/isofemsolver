@@ -9,6 +9,7 @@
 #include "solver.cuh"
 #include "test_functions.cuh"
 #include <cstring>
+#include <ctime>
 
 __constant__ Properties dProps;
 
@@ -429,7 +430,7 @@ __global__ void transpose32(float * out, const float * in, unsigned dim0, unsign
 	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y) {
 		unsigned gy_ = gy + repeat;
 		if (gx<dim0 && gy_<dim1)
-		shrdMem[ly + repeat][lx] = in[gy_ * dim0 + gx];
+			shrdMem[ly + repeat][lx] = in[gy_ * dim0 + gx];
 	}
 	__syncthreads();
 
@@ -440,50 +441,89 @@ __global__ void transpose32(float * out, const float * in, unsigned dim0, unsign
 	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y) {
 		unsigned gy_ = gy + repeat;
 		if (gx<dim1 && gy_<dim0)
-		out[gy_ * dim0 + gx] = shrdMem[lx][ly + repeat];
+			out[gy_ * dim0 + gx] = shrdMem[lx][ly + repeat];
 	}
 }
 
-//rightSize / cols
-__global__ void copyRightSideBack(Node * bottomNodes,float * rightSide)
+__global__ void copyRightSideBack(Node* bottomNodes, float* rightSide)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int nodeIdx = idx / dProps.rightCount;
-	nodeIdx = (idx < dProps.lastLevelNodes)*(idx + dProps.beforeLastLevelNodes) + (dProps.beforeLastLevelNodes && idx >= dProps.beforeLastLevelNodes)*idx;
+	if (idx >= dProps.bottomNodes * dProps.rightCount)
+		return;
+	int ordIdx = idx / dProps.rightCount;
+	int nodeIdx = (ordIdx < dProps.lastLevelNodes) * (ordIdx + dProps.beforeLastLevelNodes) + (ordIdx >= dProps.lastLevelNodes) * (ordIdx - dProps.lastLevelNodes);
+	//	printf("nodeIdx %d, %d\n", nodeIdx, idx);
 	Node node = bottomNodes[nodeIdx];
-	rightSide[idx] = node.x[1][idx%dProps.rightCount];
-	rightSide[idx+dProps.rightCount] = node.x[2][idx%dProps.rightCount];
-	rightSide[idx+dProps.rightCount*2] = node.x[3][idx%dProps.rightCount];
+	int i = idx % dProps.rightCount;
+	rightSide[ordIdx * dProps.rightCount * 3 + i] = node.x[2][i];
+	rightSide[ordIdx * dProps.rightCount * 3 + dProps.rightCount + i] = node.x[3][i];
+	rightSide[ordIdx * dProps.rightCount * 3 + dProps.rightCount * 2 + i] = node.x[1][i];
 }
 
-void runComputing()
+void runComputing(const int size, int iters)
 {
-	const int size = 14;
 	Properties props = getProperities(size, size);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	float* leftSide = nullptr;
 	float* rightSide = nullptr;
+	float* dRightSideCopy = nullptr;
 	float* dRightSideMem = nullptr;
 	float* rightSideMem = new float[dProps.rightSizeMem];
-	generateTestEquation(size, size, &leftSide, &rightSide);
-	float * leftSideCopy = new float[dProps.leftSize];
+	float* leftSideCopy = new float[dProps.leftSize];
 	memcpy(leftSideCopy, leftSide, dProps.leftSize);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;
 	float* dLeftSide = nullptr;
 	float* dRightSide = nullptr;
+	generateTestEquation(size, props.rightCount, &leftSide, &rightSide);
 	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
-	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
 	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
-	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
+	ERRCHECK(cudaMalloc(&dRightSideCopy, sizeof(float)*props.rightSize));
 	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(float)*props.rightSizeMem));
-	run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSideCopy, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
-	
+	clock_t start, end;
+	start = clock();
+	for (int i = 0; i < iters; i++)
+	{
+		ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
+		ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
+		ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
+		run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
+		ERRCHECK(cudaMemcpy(dLeftSide, leftSideCopy, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
+		copyRightSideBack << <BLOCKS(props.bottomNodes*props.rightCount), THREADS >> >(dNodes + props.remainingNodes, dRightSideCopy);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(float) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));
+		//	ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+		//	for (int i = 0; i < props.leftCount; i++)
+		//	{
+		//		for (int j = 0; j < props.rightCount; j++)
+		//		{
+		//			printf("%.2f ", rightSide[i * props.rightCount + j]);
+		//		}
+		//		printf("\n");
+		//	}
+		//	printf("\n");
+		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+	}
+	end = clock();
+	printf("time %f\n", ((float)(end - start) / CLOCKS_PER_SEC) / iters);
+	//	ERRCHECK(cudaMemcpy(rightSide, dRightSide, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+	//	for (int i = 0; i < props.leftCount; i++)
+	//	{
+	//		for (int j = 0; j < props.rightCount; j++)
+	//		{
+	//			printf("%.2f ", rightSide[i * props.rightCount + j]);
+	//		}
+	//		printf("\n");
+	//	}
+	//	printf("\n");
+
+	//run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
+
 	//	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	//	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	delete[] leftSide;
@@ -491,6 +531,7 @@ void runComputing()
 	delete[] rightSideMem;
 	delete[] nodes;
 	ERRCHECK(cudaFree(dRightSide));
+	ERRCHECK(cudaFree(dRightSideCopy));
 	ERRCHECK(cudaFree(dRightSideMem));
 	ERRCHECK(cudaFree(dNodes));
 	ERRCHECK(cudaFree(dLeftSide));
@@ -498,17 +539,22 @@ void runComputing()
 
 int main()
 {
-//		float * left;
-//		float * right;
-//		generateTestEquation(14, 1, &left, &right);
-			testRun(1025);
-//	testMultipleRun(1,1022);
-//	getch();
+	//readBmpWithMargin("C:/Users/quirell/Pictures/Untitled.bmp");
+	runComputing(65, 1000);
+	runComputing(128, 1000);
+	runComputing(255, 1000);
+	runComputing(512, 1000);
+	runComputing(1022, 1000);
+	//		float * left;
+	//		float * right;
+	//		generateTestEquation(14, 1, &left, &right);
+	//			testRun(1025);
+	//	testMultipleRun(1,1022);
+	//	getch();
 	//	testDistributeInputAmongNodes();
-//		getch();
-//			ERRCHECK(cudaSetDevice(0));
-//			testGaussianElimination();
-			getch();
-			return 0;
-
+	//		getch();
+	//			ERRCHECK(cudaSetDevice(0));
+	//			testGaussianElimination();
+	getch();
+	return 0;
 }
