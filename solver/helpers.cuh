@@ -28,4 +28,12 @@ void showMemoryConsumption();
 
 void printRow(float * m, int start, int count);
 
-float * readBmpWithMargin(char* filename);
+struct Bitmap
+{
+	float * bitmap;
+	int width;
+	int height;
+	Bitmap(float * bmp, int w, int h) :bitmap(bmp), width(w), height(h) {}
+};
+
+Bitmap readBmp(char* filename);

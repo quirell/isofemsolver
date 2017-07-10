@@ -160,6 +160,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="bitmap_approx.cu" />
     <CudaCompile Include="constants.cu" />
     <CudaCompile Include="helpers.cu" />
     <CudaCompile Include="kernel.cu">
@@ -173,6 +174,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bitmap_approx.cuh" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="helpers.cuh" />
     <ClInclude Include="solver.cuh" />

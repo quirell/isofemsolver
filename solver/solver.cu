@@ -539,7 +539,7 @@ void runComputing(const int size, int iters)
 
 int main()
 {
-	//readBmpWithMargin("C:/Users/quirell/Pictures/Untitled.bmp");
+	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
 	runComputing(65, 1000);
 	runComputing(128, 1000);
 	runComputing(255, 1000);

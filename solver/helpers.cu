@@ -157,7 +157,7 @@ void showMemoryConsumption()
 
 
 //returns transposed bitmap
-float * readBmpWithMargin(char* filename)
+Bitmap readBmp(char* filename)
 {
 	unsigned char* texels;
 	int width, height;
@@ -222,10 +222,10 @@ float * readBmpWithMargin(char* filename)
 		for (int j = 0; j < width * 3; j += 3)
 		{
 			int index = j / 3 + width*i;
-			bitmap[index] = 0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j];
+			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j])/255;
 		}
 	}
 	free(data);
 	fclose(fd);
-	return bitmap;
+	return Bitmap(bitmap, width, height);
 }
