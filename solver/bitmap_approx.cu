@@ -2,14 +2,14 @@
 #include <device_launch_parameters.h>
 #include <pplinterface.h>
 
-#define THREADS 64
+#define THREADS 32
 __constant__ BSpline2d dSplines;
 BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 {
 	int const pxPerElem = pixels / elements;
 	int const pxPerSpline = 3 * pxPerElem;
 	double const pxSpan = 1.0 / pixels;
-	double const elemSpan = 1.0 / elements;
+	double const elemSpan = 1.0 / (elements);
 	double* spline = new double[pxPerSpline];
 	double x = 0;
 	for (int i = 0; i < pxPerElem; i++ , x = x + pxSpan)
@@ -90,7 +90,8 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 //			printf("%f %f %f \n",pixel, dSplineArray[splineIdx], toSum[threadIdx.x]);
 			int t = threads;
 			int h = half;
-
+//			if(blockIdx.x == 65 && threadIdx.x >= 20)
+//							printf("%i %f %f %f %i \n",threadIdx.x,pixel, dSplineArray[splineIdx], toSum[threadIdx.x],splineCol);
 			while (threadIdx.x - elemStart < t) // size/=2
 			{
 				toSum[threadIdx.x] += toSum[threadIdx.x + h];
@@ -101,15 +102,20 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 
 			if (threadIdx.x == elemStart)
 			{
+//				printf("h: %i\n", nextStart - elemStart);
 				int splinePart = splineCol / pixPerElem;//0,1,2	
 				splinePart = 2 - splinePart; //revert spline to 2,1,0 to get shift
 				int elem = idx / pixPerElem - blockStart / pixPerElem; // find elem to which thread belongs, 0,1,2,3,4..last in the block
 				int rowShift = 2 * (idx / pixPerElem / elements - blockStart / pixPerElem / elements);//with each row shift gets greater by two, because row has elems + 2 elements
 				elem = (elem + splinePart + rowShift);
+//				if (blockIdx.x == 65 && elem == 5)
+//					printf("elem b %f\n", *(toWrite + elem));
 				atomicAdd(toWrite + elem, toSum[threadIdx.x]);
+//				if (blockIdx.x == 65 && elem == 5)
+//					printf("elem %f\n", *(toWrite + elem));
 			}
-		__syncthreads();//?
 		}
+		__syncthreads();//?
 		int blockToWrite = (blockIdx.x % memoryBlocks) * memBlockSize;
 //		int blockToWrite = 0;
 		int rowDisplacement = (pixPerElem * 2 - splineRowDispl);//bottom spline to first row, middle to middle, top spline to bottom row
@@ -118,10 +124,14 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 		int restFromLast = pixPerElem - blockStart % pixPerElem; //when blockstart % ppe == 0 restFromLast is invalid (pixPerElem), but elemsInBlock is still being computed correctly
 		int elemsInBlock = (restFromLast > 0) + (threadsNumber - restFromLast + pixPerElem - 1) / pixPerElem + 2 +
 			2 * ((blockStart + threadsNumber - 1) / pixPerElem / elements - blockStart / pixPerElem / elements);//pixPerElem-1 = ceil(x) + 2*number of rows in this block
-		if (threadIdx.x < elemsInBlock)
-						// dRightSide[indexToWrite] += toWrite[threadIdx.x];
+		if (threadIdx.x < elemsInBlock) {
+			// dRightSide[indexToWrite] += toWrite[threadIdx.x];
 //			atomicAdd(dRightSide + indexToWrite, 1);
+//			printf("eib: %i\n", elemsInBlock);
+//			if (blockIdx.x == 65 && threadIdx.x == 5)
+//				printf("thread %f\n", toWrite[threadIdx.x]);
 			atomicAdd(dRightSide + indexToWrite, toWrite[threadIdx.x]);
+		}
 //			dRightSide[indexToWrite] += 1;
 		//TODO replace threads with something that accounts for last block which may contain less than THREADS pixels :'(
 	}
@@ -272,18 +282,17 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	int numberOfMemoryBlocks = (3*pixPerElem + THREADS - 1) / THREADS + (3*pixPerElem < THREADS ? 1 : 0);//one element spans on 3 elements and corresponding number of blocks
 	int blockSize = elements2 * elements2 * pixPerElem;
 	int sharedMemorySize = 1 + (THREADS - 1 + pixPerElem - 1) / pixPerElem;//max number of elemens processed in one block
-	sharedMemorySize += 2 + 2*sharedMemorySize/elements ;//+ number of rows in elements, every row extends mem size by 2
+	sharedMemorySize += 2 + 2*sharedMemorySize/elements+4;//+ number of rows in elements, every row extends mem size by 2, +4 account for additional first and last element
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
 	int idleThreads =  totalThreads - bitmap.width * bitmap.width;
 	float * rightSide = new float[blockSize*numberOfMemoryBlocks]{0};
-	
 //	sequentialComputeRightSideCopy(BLOCKS(bitmap.width*bitmap.width), THREADS, sharedMemorySize, bSplines, bitmap.bitmap, rightSide,
 //	                               1.0 / (elements * elements), pixPerElem, bitmap.width, numberOfMemoryBlocks, blockSize,elements,elements2);
 
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*blockSize*numberOfMemoryBlocks))
 	ERRCHECK(cudaMemset(dRightSide, 0, sizeof(float)*blockSize*numberOfMemoryBlocks));
 //	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*blockSize*numberOfMemoryBlocks, cudaMemcpyHostToDevice));
-	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sharedMemorySize >>>(dSplineArray,sharedMemorySize, dBitmap, dRightSide, 1.0L / (elements*elements), pixPerElem, bitmap.width, numberOfMemoryBlocks,blockSize, elements, elements2,idleThreads);
+	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sizeof(float)*sharedMemorySize >>>(dSplineArray,sharedMemorySize, dBitmap, dRightSide, 1.0L / (elements*elements), pixPerElem, bitmap.width, numberOfMemoryBlocks,blockSize, elements, elements2,idleThreads);
 	ERRCHECK(cudaGetLastError());
 	sumBlocks<<<BLOCKS(blockSize),THREADS>>>(dRightSide, numberOfMemoryBlocks, blockSize);
 	ERRCHECK(cudaGetLastError());
@@ -308,7 +317,7 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 
 		for (int j = 0; j<elements2; j++)
 		{
-			printf("%.2f ", *(rightSide+blockSize + i*elements2 + j));
+			printf("%.2f ", *(rightSide + blockSize + i*elements2 + j));
 		}
 		printf("\n");
 	}

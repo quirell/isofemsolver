@@ -541,7 +541,7 @@ void runComputing(const int size, int iters)
 int main()
 {
 //	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled20.bmp", 5);
+	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled700.bmp", 20);
 //	runComputing(65, 1000);
 //	runComputing(128, 1000);
 //	runComputing(255, 1000);
