@@ -13,7 +13,7 @@
 #define FIRST_LVL_MAT_SIZE 5
 #define XY(x,y) x*6+y
 #define THREADS 32
-#define BLOCKS(N) (N+THREADS)/THREADS
+#define BLOCKS(N) (N+THREADS-1)/THREADS
 #define COLUMNS_PER_THREAD 1
 
 struct Properties

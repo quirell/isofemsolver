@@ -10,6 +10,7 @@
 #include "test_functions.cuh"
 #include <cstring>
 #include <ctime>
+#include "bitmap_approx.cuh"
 
 __constant__ Properties dProps;
 
@@ -539,12 +540,13 @@ void runComputing(const int size, int iters)
 
 int main()
 {
-	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	runComputing(65, 1000);
-	runComputing(128, 1000);
-	runComputing(255, 1000);
-	runComputing(512, 1000);
-	runComputing(1022, 1000);
+//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
+	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled640.bmp", 16);
+//	runComputing(65, 1000);
+//	runComputing(128, 1000);
+//	runComputing(255, 1000);
+//	runComputing(512, 1000);
+//	runComputing(1022, 1000);
 	//		float * left;
 	//		float * right;
 	//		generateTestEquation(14, 1, &left, &right);

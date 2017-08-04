@@ -25,9 +25,10 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 	}
 }
 
-__device__ __host__ void printNode(Node node,int rightCount)
+__device__ __host__ void printNode(Node node, int rightCount)
 {
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < 6; i++)
+	{
 		printf("%.2f %.2f %.2f %.2f %.2f %.2f | ", node.m[XY(i, 0)], node.m[XY(i, 1)], node.m[XY(i, 2)], node.m[XY(i, 3)], node.m[XY(i, 4)], node.m[XY(i, 5)]);
 		for (int k = 0; k < rightCount; k++)
 		{
@@ -47,35 +48,36 @@ void fillRightSide(float value, int row, float* rightSide, int rightCount)
 }
 
 
-void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i,int offset)
+void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i, int offset)
 {
 	int rightSideVal = 0;
 	for (int j = 0; j < 5; j++)
 	{
-//		int solution = 1;
+		//		int solution = 1;
 		int solution = i - 1 + j + offset;//solution is x(0)=1,x(1)=2,x(n-1)=n
-		rightSideVal += leftSide[i*5+j] * solution;
+		rightSideVal += leftSide[i * 5 + j] * solution;
 	}
 	fillRightSide(rightSideVal, i, rightSide, rightCount);
 }
 
-__device__ void printRow(float * m, int start, int count)
+__device__ void printRow(float* m, int start, int count)
 {
 	for (int i = start; i < start + count; i++)
 		printf("%.1f ", m[i]);
 	printf("\n");
 }
+
 void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
 {
 	float* leftSide = new float[leftCount * 5];
 	float* rightSide = new float[rightCount * leftCount];
-	for (int i = 0; i < leftCount * 5; i+=5)
+	for (int i = 0; i < leftCount * 5; i += 5)
 	{
 		leftSide[i] = 1;
-		leftSide[i+1] = 1;
-		leftSide[i+2] = 5;
-		leftSide[i+3] = 1;
-		leftSide[i+4] = 1;
+		leftSide[i + 1] = 1;
+		leftSide[i + 2] = 5;
+		leftSide[i + 3] = 1;
+		leftSide[i + 4] = 1;
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
@@ -86,48 +88,48 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 
 	for (int i = 0; i < leftCount; i++)
 	{
-		computeRightSide(rightCount, leftSide, rightSide, i,0);
+		computeRightSide(rightCount, leftSide, rightSide, i, 0);
 	}
-//	fillRightSide(14, i, rightSide, rightCount);
+	//	fillRightSide(14, i, rightSide, rightCount);
 	*leftSidePtr = leftSide;
 	*rightSidePtr = rightSide;
-//	for (int i = 0; i < leftCount; i++)
-//	{
-//		printf("%d:", i + 1);
-//		for (int j = 0; j < 5; j++)
-//		{
-//			printf("%.0f ", leftSide[i * 5 + j]);
-//		}
-//		printf(" |  ");
-//		for (int j = 0; j < rightCount; j++)
-//		{
-//			printf("%.0f ", rightSide[i * rightCount + j]);
-//		}
-//		printf("\n");
-//	}
-//	int before = 0;
-//	int after = leftCount-1;
-//	for (int i = 0; i < leftCount; i++)
-//	{
-//		for (int i = 0; i < before; i++)
-//			printf("0 ");
-//		for (int j = 0; j < 5; j++)
-//		{
-//			printf("%.0f ", leftSide[i * 5 + j]);
-//		}
-//		for (int i = 0; i < after; i++)
-//			printf("0 ");
-//		printf(" |  ");
-//		for (int j = 0; j < rightCount; j++)
-//		{
-//			printf("%.0f ", rightSide[i * rightCount + j]);
-//		}
-//		printf("\n");
-//		before++;
-//		after--;
-//	}
+	//	for (int i = 0; i < leftCount; i++)
+	//	{
+	//		printf("%d:", i + 1);
+	//		for (int j = 0; j < 5; j++)
+	//		{
+	//			printf("%.0f ", leftSide[i * 5 + j]);
+	//		}
+	//		printf(" |  ");
+	//		for (int j = 0; j < rightCount; j++)
+	//		{
+	//			printf("%.0f ", rightSide[i * rightCount + j]);
+	//		}
+	//		printf("\n");
+	//	}
+	//	int before = 0;
+	//	int after = leftCount-1;
+	//	for (int i = 0; i < leftCount; i++)
+	//	{
+	//		for (int i = 0; i < before; i++)
+	//			printf("0 ");
+	//		for (int j = 0; j < 5; j++)
+	//		{
+	//			printf("%.0f ", leftSide[i * 5 + j]);
+	//		}
+	//		for (int i = 0; i < after; i++)
+	//			printf("0 ");
+	//		printf(" |  ");
+	//		for (int j = 0; j < rightCount; j++)
+	//		{
+	//			printf("%.0f ", rightSide[i * rightCount + j]);
+	//		}
+	//		printf("\n");
+	//		before++;
+	//		after--;
+	//	}
 
-//	getch();
+	//	getch();
 }
 
 
@@ -156,7 +158,8 @@ void showMemoryConsumption()
 //}
 
 
-//returns transposed bitmap
+//returns bitmap upside down and rotated right 90 
+//TODO cuts bitmap edges
 Bitmap readBmp(char* filename)
 {
 	unsigned char* texels;
@@ -177,7 +180,8 @@ Bitmap readBmp(char* filename)
 	// Capture dimensions
 	width = *(int*)&header[18];
 	height = *(int*)&header[22];
-
+	if (width != height)
+		throw "bitmap must be suqare size";
 	int padding = 0;
 
 	// Calculate padding
@@ -196,7 +200,7 @@ Bitmap readBmp(char* filename)
 	//		printf("Error: Malloc failed\n");
 	//		return;
 	//	}
-	
+
 	float* bitmap = nullptr;
 	bitmap = new float[width * height];
 
@@ -204,15 +208,15 @@ Bitmap readBmp(char* filename)
 
 	unsigned char* data = (unsigned char *)malloc(widthnew * sizeof(unsigned int));
 	//input (bmp stores bitmap upside down)
-	// 3. 3 3 
-	// 2. 2 2
-	// 1. 1 1
+	// 3. 3 3 x x x
+	// 2. 2 2 y
+	// 1. 1 1 y
 	//output
-	// 1. 1 1
-	// 2. 2 2
-	// 3. 3 3
+	// 1. 2. 3. y y y 
+	// 1  2  3 x 
+	// 1  2  3 x
 	// Read row by row of data and remove padded data.
-	for (int i = height - 1; i > 0; i--)
+	for (int i = height - 1; i >= 0; i--)
 	{
 		// Read widthnew length of data
 		fread(data, sizeof(unsigned char), widthnew, fd);
@@ -221,8 +225,9 @@ Bitmap readBmp(char* filename)
 		// BMP stores in BGR format, my usecase needs RGB format
 		for (int j = 0; j < width * 3; j += 3)
 		{
-			int index = j / 3 + width*i;
-			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j])/255;
+			//int index = j / 3 + width*i;// upside down
+			int index = (j / 3) * width + i; //rotated 90 right
+			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j]) / 255;
 		}
 	}
 	free(data);
