@@ -216,7 +216,7 @@ Bitmap readBmp(char* filename)
 	// 1  2  3 x 
 	// 1  2  3 x
 	// Read row by row of data and remove padded data.
-	for (int i = height - 1; i >= 0; i--)
+	for (int i = 0; i <height; i++)
 	{
 		// Read widthnew length of data
 		fread(data, sizeof(unsigned char), widthnew, fd);

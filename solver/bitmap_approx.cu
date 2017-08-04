@@ -87,6 +87,7 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 			int splineCol = (col + splineColDispl) % dSplines.size;
 			int splineIdx = (row % pixPerElem + splineRowDispl) * dSplines.size + splineCol; //spline row + spline col
 			toSum[threadIdx.x] = pixel * dSplineArray[splineIdx] * area;
+//			toSum[threadIdx.x] = 1;
 //			printf("%f %f %f \n",pixel, dSplineArray[splineIdx], toSum[threadIdx.x]);
 			int t = threads;
 			int h = half;
@@ -94,12 +95,16 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 //							printf("%i %f %f %f %i \n",threadIdx.x,pixel, dSplineArray[splineIdx], toSum[threadIdx.x],splineCol);
 			while (threadIdx.x - elemStart < t) // size/=2
 			{
+//				if(toSum[threadIdx.x] > 33 || toSum[threadIdx.x] < 0)
+//				{
+//					printf("il  %f < %f\n", toSum[threadIdx.x], toSum[threadIdx.x + h]);
+//				}
+//				__syncthreads();
 				toSum[threadIdx.x] += toSum[threadIdx.x + h];
 				t = h / 2;
 				h = (h + 1) / 2;
-				__syncthreads();
 			}
-
+			__syncthreads();
 			if (threadIdx.x == elemStart)
 			{
 //				printf("h: %i\n", nextStart - elemStart);
@@ -110,7 +115,13 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 				elem = (elem + splinePart + rowShift);
 //				if (blockIdx.x == 65 && elem == 5)
 //					printf("elem b %f\n", *(toWrite + elem));
+//				if (toSum[threadIdx.x] > 33 || toSum[threadIdx.x] < 0)
+//					printf("sum %f\n", toSum[threadIdx.x]);
+//				if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
+//					printf("xthreadbe %f\n", toWrite[threadIdx.x]);
 				atomicAdd(toWrite + elem, toSum[threadIdx.x]);
+//				if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
+//					printf("xthreadaf %f\n", toWrite[threadIdx.x]);
 //				if (blockIdx.x == 65 && elem == 5)
 //					printf("elem %f\n", *(toWrite + elem));
 			}
@@ -128,102 +139,15 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 			// dRightSide[indexToWrite] += toWrite[threadIdx.x];
 //			atomicAdd(dRightSide + indexToWrite, 1);
 //			printf("eib: %i\n", elemsInBlock);
-//			if (blockIdx.x == 65 && threadIdx.x == 5)
+//			if (blockIdx.x == 0 && threadIdx.x == 0)
+//				printf("thread %f\n", toWrite[threadIdx.x]);
+//			if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
 //				printf("thread %f\n", toWrite[threadIdx.x]);
 			atomicAdd(dRightSide + indexToWrite, toWrite[threadIdx.x]);
 		}
 //			dRightSide[indexToWrite] += 1;
 		//TODO replace threads with something that accounts for last block which may contain less than THREADS pixels :'(
 	}
-}
-//element musi sie skladac z wiecej niz 1 piksela
-void sequentialComputeRightSideCopy(int blocks, int blockDim, int toWriteSize,BSpline2d dSplines, float* bitmap, float* dRightSide, float area, int pixPerElem, int bitmapSize, int memoryBlocks, int memBlockSize,int elements,int elements2)
-{
-//	for (int i = 0; i<elements2*pixPerElem; i++)
-//	{
-//		for (int j = 0; j<elements2; j++)
-//		{
-//			printf("%.2f ", *(dRightSide + i*elements2 + j));
-//		}
-//		printf("\n");
-//	}
-	for (int blockIdx = 0; blockIdx < blocks; blockIdx++)
-	{
-		float toSum[THREADS];
-		float* toWrite = new float[toWriteSize];//max_elems = size = 1+ceil(THREADS-1)/pixPerElem+2
-		for (int threadIdx = 0; threadIdx < blockDim; threadIdx++)
-		{
-			unsigned blockStart = blockIdx * blockDim;
-			int idx = blockStart + threadIdx;
-			int row = idx / bitmapSize;
-			int col = idx % bitmapSize;
-			int pxIdx = idx; // = row*bitmapSize + col
-			float pixel = bitmap[pxIdx];
-			//compute summing indices
-			int elemStart = threadIdx - idx % pixPerElem;
-			int nextStart = elemStart + pixPerElem;
-			elemStart -= (elemStart < 0) * elemStart; // elemStart < 0 ? elemStart : 0
-			nextStart -= (nextStart > THREADS) * (nextStart - THREADS);// nextStart > THREADS ? THREADS : nextStart, moze >= ?
-			int half = nextStart - elemStart;
-			int threads = half / 2;
-			half = (half + 1) / 2; //in case of odd number of elements - omit middle element, leave it for next iteration
-
-			for (int splineRowDispl = pixPerElem * 2; splineRowDispl >= 0; splineRowDispl -= pixPerElem) //2ppe,1ppe,0ppe displacement
-			{
-				for (int splineColDispl = pixPerElem * 2; splineColDispl >= 0; splineColDispl -= pixPerElem)//2ppe + col
-				{
-					int splineCol = (col + splineColDispl) % dSplines.size;
-					int splineIdx = (row % pixPerElem + splineRowDispl) * dSplines.size + splineCol; //spline row + spline col
-					toSum[threadIdx] = pixel * dSplines.spline[splineIdx] * area;
-
-					int t = threads;
-					int h = half;
-
-					while (threadIdx - elemStart < t) // size/=2
-					{
-						toSum[threadIdx] += toSum[threadIdx + h];
-						t = h / 2;
-						h = (h + 1) / 2;
-					}
-
-					if (threadIdx == elemStart)
-					{
-						int splinePart = splineCol / pixPerElem;//0,1,2	
-						splinePart = 2 - splinePart; //revert spline to 2,1,0 to get shift
-						int elem = idx / pixPerElem - blockStart / pixPerElem; // find elem to which thread belongs, 0,1,2,3,4..last in the block
-						int rowShift = 2*(idx / pixPerElem / elements - blockStart/pixPerElem/elements);//with each row shift gets greater by two, because row has elems + 2 elements
-						elem = (elem + splinePart + rowShift);
-						toWrite[elem] += toSum[threadIdx];
-					}
-				}
-				int blockToWrite = (blockIdx % memoryBlocks) * memBlockSize;
-//				int blockToWrite = 0;
-				int rowDisplacement = (pixPerElem * 2 - splineRowDispl);//bottom spline to first row, middle to middle, top spline to bottom row
-//				int indexToWrite = blockStart / pixPerElem + threadIdx;//consecutiveElement
-//				indexToWrite += 2 * (indexToWrite / elements) + rowDisplacement*elements2 + blockToWrite;//plus elemsRowShift
-				int indexToWrite = blockStart / pixPerElem + 2 * (blockStart / pixPerElem / elements) + threadIdx;//consecutiveElement
-				indexToWrite += rowDisplacement*elements2 + blockToWrite;//plus elemsRowShift
-				int restFromLast = pixPerElem - blockStart % pixPerElem; //when blockstart % ppe == 0 restFromLast is invalid (pixPerElem), but elemsInBlock is still being computed correctly
-				int elemsInBlock = (restFromLast > 0) + (THREADS - restFromLast + pixPerElem - 1) / pixPerElem + 2 +
-					2 * ((blockStart+THREADS-1) / pixPerElem / elements - blockStart / pixPerElem / elements);//pixPerElem-1 = ceil(x) + 2*number of rows in this block
-				if (threadIdx < elemsInBlock) { 
-//					dRightSide[indexToWrite] = toWrite[threadIdx];
-					dRightSide[indexToWrite] += 1;
-//					printf("i: %i, (x,y)%i,%i\n",indexToWrite-blockToWrite, (indexToWrite-blockToWrite) / (elements2), (indexToWrite-blockToWrite) %(elements2));
-				}
-				//TODO replace threads with something that accounts for last block which may contain less than THREADS pixels :'( or may it not?
-			}
-		}
-		
-	}
-//	for (int i = 0; i<elements2*pixPerElem; i++)
-//	{
-//		for (int j = 0; j<elements2; j++)
-//		{
-//			printf("%.2f ", *(dRightSide + i*elements2 + j));
-//		}
-//		printf("\n");
-//	}
 }
 
 //threads = elem2*elem2
