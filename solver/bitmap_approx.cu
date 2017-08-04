@@ -2,7 +2,7 @@
 #include <device_launch_parameters.h>
 #include <pplinterface.h>
 
-#define THREADS 32
+#define THREADS 64
 __constant__ BSpline2d dSplines;
 BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 {
@@ -52,19 +52,19 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 	//account for more threads than pixels
 	unsigned blockStart = blockIdx.x * blockDim.x;
 	int idx = blockStart + threadIdx.x;
-//	int threadsNumber;
+	int threadsNumber;
 	if (idx >= bitmapSize*bitmapSize)
 	{
-		printf("idx\n");
 		return;
 	}
-//	if(idx >= (bitmapSize*bitmapSize-THREADS))
-//	{
-//		threadsNumber = idleThreads;
-//	}else
-//	{
-//		threads = THREADS;
-//	}
+	if(idx >= (gridDim.x*blockDim.x-THREADS))
+	{
+//		printf("idx: %i\n", idx);
+		threadsNumber = THREADS - idleThreads;
+	}else
+	{
+		threadsNumber = THREADS;
+	}
 	int row = idx / bitmapSize;
 	int col = idx % bitmapSize;
 	int pxIdx = idx; // = row*bitmapSize + col
@@ -73,7 +73,7 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 	int elemStart = threadIdx.x - idx % pixPerElem;
 	int nextStart = elemStart + pixPerElem;
 	elemStart -= (elemStart < 0) * elemStart; // elemStart < 0 ? elemStart : 0
-	nextStart -= (nextStart > THREADS) * (nextStart - THREADS);// nextStart > THREADS ? THREADS : nextStart, moze >= ?
+	nextStart -= (nextStart > threadsNumber) * (nextStart - threadsNumber);// nextStart > THREADS ? THREADS : nextStart, moze >= ?
 	int half = nextStart - elemStart;
 	int threads = half / 2;
 	half = (half + 1) / 2; //in case of odd number of elements - omit middle element, leave it for next iteration
@@ -116,8 +116,8 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 		int indexToWrite = blockStart / pixPerElem + 2 * (blockStart / pixPerElem / elements) + threadIdx.x;//consecutiveElement
 		indexToWrite += rowDisplacement*elements2 + blockToWrite;//plus elemsRowShift
 		int restFromLast = pixPerElem - blockStart % pixPerElem; //when blockstart % ppe == 0 restFromLast is invalid (pixPerElem), but elemsInBlock is still being computed correctly
-		int elemsInBlock = (restFromLast > 0) + (THREADS - restFromLast + pixPerElem - 1) / pixPerElem + 2 +
-			2 * ((blockStart + THREADS - 1) / pixPerElem / elements - blockStart / pixPerElem / elements);//pixPerElem-1 = ceil(x) + 2*number of rows in this block
+		int elemsInBlock = (restFromLast > 0) + (threadsNumber - restFromLast + pixPerElem - 1) / pixPerElem + 2 +
+			2 * ((blockStart + threadsNumber - 1) / pixPerElem / elements - blockStart / pixPerElem / elements);//pixPerElem-1 = ceil(x) + 2*number of rows in this block
 		if (threadIdx.x < elemsInBlock)
 						// dRightSide[indexToWrite] += toWrite[threadIdx.x];
 //			atomicAdd(dRightSide + indexToWrite, 1);
@@ -274,7 +274,7 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	int sharedMemorySize = 1 + (THREADS - 1 + pixPerElem - 1) / pixPerElem;//max number of elemens processed in one block
 	sharedMemorySize += 2 + 2*sharedMemorySize/elements ;//+ number of rows in elements, every row extends mem size by 2
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
-	int idleThreads = THREADS - ( totalThreads - bitmap.width * bitmap.width);
+	int idleThreads =  totalThreads - bitmap.width * bitmap.width;
 	float * rightSide = new float[blockSize*numberOfMemoryBlocks]{0};
 	
 //	sequentialComputeRightSideCopy(BLOCKS(bitmap.width*bitmap.width), THREADS, sharedMemorySize, bSplines, bitmap.bitmap, rightSide,
