@@ -104,7 +104,7 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 				t = h / 2;
 				h = (h + 1) / 2;
 			}
-			__syncthreads();
+//			__syncthreads();
 			if (threadIdx.x == elemStart)
 			{
 //				printf("h: %i\n", nextStart - elemStart);
@@ -126,7 +126,7 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 //					printf("elem %f\n", *(toWrite + elem));
 			}
 		}
-		__syncthreads();//?
+//		__syncthreads();//?
 		int blockToWrite = (blockIdx.x % memoryBlocks) * memBlockSize;
 //		int blockToWrite = 0;
 		int rowDisplacement = (pixPerElem * 2 - splineRowDispl);//bottom spline to first row, middle to middle, top spline to bottom row
@@ -146,7 +146,6 @@ __global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitm
 			atomicAdd(dRightSide + indexToWrite, toWrite[threadIdx.x]);
 		}
 //			dRightSide[indexToWrite] += 1;
-		//TODO replace threads with something that accounts for last block which may contain less than THREADS pixels :'(
 	}
 }
 
@@ -236,15 +235,15 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 //		}
 //		printf("--\n");
 //	}
-	for (int i = 0; i<elements2; i++)
-	{
-
-		for (int j = 0; j<elements2; j++)
-		{
-			printf("%.2f ", *(rightSide + blockSize + i*elements2 + j));
-		}
-		printf("\n");
-	}
+//	for (int i = 0; i<elements2; i++)
+//	{
+//
+//		for (int j = 0; j<elements2; j++)
+//		{
+//			printf("%.2f ", *(rightSide + blockSize + i*elements2 + j));
+//		}
+//		printf("\n");
+//	}
 	printf("sum: %f\n", bSplines.sum*1.0L / (elements*elements));
 	return dRightSide;
 }

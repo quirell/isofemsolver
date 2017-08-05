@@ -541,7 +541,7 @@ void runComputing(const int size, int iters)
 int main()
 {
 //	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled6.bmp",3);
+	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled700.bmp",70);
 //	runComputing(65, 1000);
 //	runComputing(128, 1000);
 //	runComputing(255, 1000);
@@ -557,6 +557,6 @@ int main()
 	//		getch();
 	//			ERRCHECK(cudaSetDevice(0));
 	//			testGaussianElimination();
-	getch();
+//	getch();
 	return 0;
 }
