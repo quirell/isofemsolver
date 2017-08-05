@@ -541,22 +541,22 @@ void runComputing(const int size, int iters)
 int main()
 {
 //	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled700.bmp",70);
+	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled44.bmp",11);
 //	runComputing(65, 1000);
 //	runComputing(128, 1000);
 //	runComputing(255, 1000);
 //	runComputing(512, 1000);
 //	runComputing(1022, 1000);
-	//		float * left;
-	//		float * right;
-	//		generateTestEquation(14, 1, &left, &right);
-	//			testRun(1025);
+//			float * left;
+//			float * right;
+//			generateTestEquation(14, 1, &left, &right);
+//			testRun(14);
 	//	testMultipleRun(1,1022);
 	//	getch();
 	//	testDistributeInputAmongNodes();
 	//		getch();
 	//			ERRCHECK(cudaSetDevice(0));
 	//			testGaussianElimination();
-//	getch();
+	getch();
 	return 0;
 }

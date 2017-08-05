@@ -44,7 +44,7 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 }
 
 ///(ceil(pixPerElem/threadsPerBlock)+1)+2
-__global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitmap, float* dRightSide, float area, int pixPerElem, int bitmapSize, int memoryBlocks, int memBlockSize,int elements,int elements2,int idleThreads)//=elements*elements (elements+=2)
+__global__ void computeRightSide(float* dSplineArray,int toWriteSize,float* bitmap, float* dRightSide, float area, int pixPerElem, int bitmapSize, int memoryBlocks, int memBlockSize,int elements,int elements2,int idleThreads)
 {
 	__shared__ float toSum[THREADS];
 	//__shared__ float toSum2[THREADS];//for reduction 2 times faster
@@ -199,8 +199,9 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 
 	ERRCHECK(cudaMalloc(&dBitmap, sizeof(float)*bitmap.width*bitmap.width));
 	ERRCHECK(cudaMemcpy(dBitmap, bitmap.bitmap, sizeof(float)*bitmap.width*bitmap.height, cudaMemcpyHostToDevice));
+	delete[] bitmap.bitmap;
 
-	float* dRightSide = nullptr;
+ 	float* dRightSide = nullptr;
 	int pixPerElem = bitmap.width / elements;
 	int numberOfMemoryBlocks = (3*pixPerElem + THREADS - 1) / THREADS + (3*pixPerElem < THREADS ? 1 : 0);//one element spans on 3 elements and corresponding number of blocks
 	int blockSize = elements2 * elements2 * pixPerElem;
@@ -208,7 +209,8 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	sharedMemorySize += 2 + 2*sharedMemorySize/elements+4;//+ number of rows in elements, every row extends mem size by 2, +4 account for additional first and last element
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
 	int idleThreads =  totalThreads - bitmap.width * bitmap.width;
-	float * rightSide = new float[blockSize*numberOfMemoryBlocks]{0};
+//	float * rightSide = new float[blockSize*numberOfMemoryBlocks]{0}; FOR TESTING
+	float * rightSide = new float[elements2*elements2];
 //	sequentialComputeRightSideCopy(BLOCKS(bitmap.width*bitmap.width), THREADS, sharedMemorySize, bSplines, bitmap.bitmap, rightSide,
 //	                               1.0 / (elements * elements), pixPerElem, bitmap.width, numberOfMemoryBlocks, blockSize,elements,elements2);
 
@@ -222,7 +224,11 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	sumVerticalPxels<<<BLOCKS(elements2*elements2),THREADS>>>(dRightSide, dRightSide + blockSize, elements2, pixPerElem);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	ERRCHECK(cudaMemcpy(rightSide,dRightSide, sizeof(float)*blockSize*numberOfMemoryBlocks, cudaMemcpyDeviceToHost));
+//	ERRCHECK(cudaMemcpy(rightSide,dRightSide, sizeof(float)*blockSize*numberOfMemoryBlocks, cudaMemcpyDeviceToHost)); FOR TESTING
+	ERRCHECK(cudaMemcpy(rightSide,dRightSide + blockSize, sizeof(float)*elements2*elements2, cudaMemcpyDeviceToHost));
+	ERRCHECK(cudaFree(dSplineArray));
+	ERRCHECK(cudaFree(dBitmap));
+	ERRCHECK(cudaFree(dRightSide));
 //	for (int i = 0; i<elements2*pixPerElem; i++)
 //	{
 //		for(int k = 0;k<numberOfMemoryBlocks;k++)
@@ -235,7 +241,7 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 //		}
 //		printf("--\n");
 //	}
-//	for (int i = 0; i<elements2; i++)
+//	for (int i = 0; i<elements2; i++) FOR TESTING
 //	{
 //
 //		for (int j = 0; j<elements2; j++)
@@ -244,6 +250,15 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 //		}
 //		printf("\n");
 //	}
+	for (int i = 0; i<elements2; i++)
+	{
+
+		for (int j = 0; j<elements2; j++)
+		{
+			printf("%.2f ", *(rightSide + i*elements2 + j));
+		}
+		printf("\n");
+	}
 	printf("sum: %f\n", bSplines.sum*1.0L / (elements*elements));
 	return dRightSide;
 }
