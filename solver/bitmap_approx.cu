@@ -68,7 +68,6 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 	bs.size = pxPerSpline;
 	bs.sum = sum;
 	return bs;
-	//	return BSpline2d(spline2D, pxPerSpline);
 }
 
 ///(ceil(pixPerElem/threadsPerBlock)+1)+2
@@ -76,8 +75,8 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 {
 	__shared__ float toSum[THREADS];
 	//__shared__ float toSum2[THREADS];//for reduction 2 times faster
-	extern __shared__ float toWrite[];//max_elems = size = 1+ceil(THREADS-1)/pixPerElem+2
-	//account for more threads than pixels
+	extern __shared__ float toWrite[];
+
 	unsigned blockStart = blockIdx.x * blockDim.x;
 	int idx = blockStart + threadIdx.x;
 	int threadsNumber;
@@ -87,7 +86,6 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 	}
 	if (idx >= (gridDim.x * blockDim.x - THREADS))
 	{
-		//		printf("idx: %i\n", idx);
 		threadsNumber = THREADS - idleThreads;
 	}
 	else
@@ -116,18 +114,10 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 			int splineCol = (col + splineColDispl) % dSplines.size;
 			int splineIdx = (row % pixPerElem + splineRowDispl) * dSplines.size + splineCol; //spline row + spline col
 			toSum[threadIdx.x] = pixel * dSplineArray[splineIdx] * area;
-			//			toSum[threadIdx.x] = 1;
-			//			printf("%f %f %f \n",pixel, dSplineArray[splineIdx], toSum[threadIdx.x]);
 			int t = threads;
 			int h = half;
-			//			if(blockIdx.x == 65 && threadIdx.x >= 20)
-			//							printf("%i %f %f %f %i \n",threadIdx.x,pixel, dSplineArray[splineIdx], toSum[threadIdx.x],splineCol);
 			while (threadIdx.x - elemStart < t) // size/=2
 			{
-				//				if(toSum[threadIdx.x] > 33 || toSum[threadIdx.x] < 0)
-				//				{
-				//					printf("il  %f < %f\n", toSum[threadIdx.x], toSum[threadIdx.x + h]);
-				//				}
 				//				__syncthreads();
 				toSum[threadIdx.x] += toSum[threadIdx.x + h];
 				t = h / 2;
@@ -136,28 +126,18 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 			//			__syncthreads();
 			if (threadIdx.x == elemStart)
 			{
-				//				printf("h: %i\n", nextStart - elemStart);
 				int splinePart = splineCol / pixPerElem;//0,1,2	
 				splinePart = 2 - splinePart; //revert spline to 2,1,0 to get shift
 				int elem = idx / pixPerElem - blockStart / pixPerElem; // find elem to which thread belongs, 0,1,2,3,4..last in the block
 				int rowShift = 2 * (idx / pixPerElem / elements - blockStart / pixPerElem / elements);//with each row shift gets greater by two, because row has elems + 2 elements
 				elem = (elem + splinePart + rowShift);
-				//				if (blockIdx.x == 65 && elem == 5)
-				//					printf("elem b %f\n", *(toWrite + elem));
-				//				if (toSum[threadIdx.x] > 33 || toSum[threadIdx.x] < 0)
-				//					printf("sum %f\n", toSum[threadIdx.x]);
-				//				if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
-				//					printf("xthreadbe %f\n", toWrite[threadIdx.x]);
+
 				atomicAdd(toWrite + elem, toSum[threadIdx.x]); //mozna zastapic atomc add dodając 3 razy wiecej pamieci toWrite i watki sumuja modulo, a potem sumuje sie te 3 bloki pamiec
-				//				if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
-				//					printf("xthreadaf %f\n", toWrite[threadIdx.x]);
-				//				if (blockIdx.x == 65 && elem == 5)
-				//					printf("elem %f\n", *(toWrite + elem));
+
 			}
 		}
 		//		__syncthreads();//?
 		int blockToWrite = (blockIdx.x % memoryBlocks) * memBlockSize;
-		//		int blockToWrite = 0;
 		int rowDisplacement = (pixPerElem * 2 - splineRowDispl);//bottom spline to first row, middle to middle, top spline to bottom row
 		int indexToWrite = blockStart / pixPerElem + 2 * (blockStart / pixPerElem / elements) + threadIdx.x;//consecutiveElement
 		indexToWrite += rowDisplacement * elements2 + blockToWrite;//plus elemsRowShift
@@ -166,16 +146,8 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 			2 * ((blockStart + threadsNumber - 1) / pixPerElem / elements - blockStart / pixPerElem / elements);//pixPerElem-1 = ceil(x) + 2*number of rows in this block
 		if (threadIdx.x < elemsInBlock)
 		{
-			// dRightSide[indexToWrite] += toWrite[threadIdx.x];
-			//			atomicAdd(dRightSide + indexToWrite, 1);
-			//			printf("eib: %i\n", elemsInBlock);
-			//			if (blockIdx.x == 0 && threadIdx.x == 0)
-			//				printf("thread %f\n", toWrite[threadIdx.x]);
-			//			if (toWrite[threadIdx.x] > 10 || toWrite[threadIdx.x] < 0)
-			//				printf("thread %f\n", toWrite[threadIdx.x]);
 			atomicAdd(dRightSide + indexToWrite, toWrite[threadIdx.x]);
 		}
-		//			dRightSide[indexToWrite] += 1;
 	}
 }
 
@@ -287,16 +259,16 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	//		printf("\n");
 	//	}
 	//PRINT RESULT
-		for (int i = 0; i<elements2; i++)
-		{
-	
-			for (int j = 0; j<elements2; j++)
-			{
-				printf("%.2f ", *(rightSide + i*elements2 + j));
-			}
-			printf("\n");
-		}
-		printf("sum: %f\n", bSplines.sum*1.0L / (elements*elements));
+//		for (int i = 0; i<elements2; i++)
+//		{
+//	
+//			for (int j = 0; j<elements2; j++)
+//			{
+//				printf("%.2f ", *(rightSide + i*elements2 + j));
+//			}
+//			printf("\n");
+//		}
+//		printf("sum: %f\n", bSplines.sum*1.0L / (elements*elements));
 	//	return dRightSide;
 	return rightSide;
 }
