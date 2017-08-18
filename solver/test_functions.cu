@@ -108,7 +108,7 @@ void testRun(const int size)
 	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, nodes, rightSideMem);
-//	printAllNodes(nodes, 0, props);
+	printAllNodes(nodes, 0, props);
 //	delete [] leftSide;
 //	delete [] rightSide;
 //	delete [] rightSideMem;

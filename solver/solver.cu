@@ -11,6 +11,7 @@
 #include <cstring>
 #include <ctime>
 #include "bitmap_approx.cuh"
+#include <string>
 
 __constant__ Properties dProps;
 
@@ -278,7 +279,7 @@ inline __device__ __host__ void assignParentToChildren(Node* nodes, int nodeIdx)
 {
 	Node* parent = &nodes[nodeIdx];
 	Node* left = &nodes[LEFT(nodeIdx)];
-	Node* right = &nodes[RIGHT(nodeIdx)]; 
+	Node* right = &nodes[RIGHT(nodeIdx)];
 	left->x[2] = parent->x[2]; //it's enough to assign pointers because it won't be modified 
 	left->x[3] = parent->x[3];
 	left->x[4] = parent->x[0];
@@ -290,7 +291,7 @@ inline __device__ __host__ void assignParentToChildren(Node* nodes, int nodeIdx)
 	right->x[5] = parent->x[5];
 }
 
-__global__ void assignParentToChildrenLayer(Node* nodes,int startNode,int nodesCount)
+__global__ void assignParentToChildrenLayer(Node* nodes, int startNode, int nodesCount)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= nodesCount)
@@ -300,7 +301,7 @@ __global__ void assignParentToChildrenLayer(Node* nodes,int startNode,int nodesC
 }
 
 void distributeInputAmongNodes(Node* dNodes, float* dLeftSide, float* dRightSideMem, float* dRightSide, Properties props)
-{	
+{
 	divideLeft << <BLOCKS(props.bottomNodes), THREADS >> >(dNodes, dLeftSide);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
@@ -336,7 +337,8 @@ void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 
 void eliminateRoot(Node* dNodes, Properties props)
 {
-	mergeRightSideLayer << <1, props.rightCount>> >(dNodes, 0, props.rightCount);
+//	mergeRightSideLayer << <1, props.rightCount>> >(dNodes, 0, props.rightCount); less than 1024
+	mergeRightSideLayer << <BLOCKS(props.rightCount), THREADS>> >(dNodes, 0, props.rightCount);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	mergeLeftChild << <1,1>> >(dNodes, 0, 1);
@@ -358,6 +360,7 @@ void eliminateRoot(Node* dNodes, Properties props)
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 }
+
 
 void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, float* dRightSideMem)
 {
@@ -387,7 +390,6 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 	nodesCount = props.heapNodes == 5 ? 1 : 2; //for smallest size tree is 1, otherwise 2
 	for (int start = 1; start < PARENT(props.lastLevelStartIdx); start = LEFT(start) , nodesCount *= 2)
 	{
-		
 		backwardSubstitutionRight<<<BLOCKS(nodesCount*(props.rightCount / COLUMNS_PER_THREAD)), THREADS >>>(dNodes, start, nodesCount, 0, 1);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
@@ -412,12 +414,13 @@ void run(Node* dNodes, float* dLeftSide, Properties props, float* dRightSide, fl
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 }
+
 const int TILE_DIM = 32;
 const int BLOCK_ROWS = 8;
 const int NUM_REPS = 100;
 
 
-__global__ void transpose32(float * out, const float * in, unsigned dim0, unsigned dim1)
+__global__ void transpose32(float* out, const float* in, unsigned dim0, unsigned dim1)
 {
 	__shared__ float shrdMem[TILE_DIM][TILE_DIM + 1];
 
@@ -425,23 +428,25 @@ __global__ void transpose32(float * out, const float * in, unsigned dim0, unsign
 	unsigned ly = threadIdx.y;
 
 	unsigned gx = lx + blockDim.x * blockIdx.x;
-	unsigned gy = ly + TILE_DIM   * blockIdx.y;
+	unsigned gy = ly + TILE_DIM * blockIdx.y;
 
 #pragma unroll
-	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y) {
+	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y)
+	{
 		unsigned gy_ = gy + repeat;
-		if (gx<dim0 && gy_<dim1)
+		if (gx < dim0 && gy_ < dim1)
 			shrdMem[ly + repeat][lx] = in[gy_ * dim0 + gx];
 	}
 	__syncthreads();
 
 	gx = lx + blockDim.x * blockIdx.y;
-	gy = ly + TILE_DIM   * blockIdx.x;
+	gy = ly + TILE_DIM * blockIdx.x;
 
 #pragma unroll
-	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y) {
+	for (unsigned repeat = 0; repeat < TILE_DIM; repeat += blockDim.y)
+	{
 		unsigned gy_ = gy + repeat;
-		if (gx<dim1 && gy_<dim0)
+		if (gx < dim1 && gy_ < dim0)
 			out[gy_ * dim0 + gx] = shrdMem[lx][ly + repeat];
 	}
 }
@@ -461,7 +466,8 @@ __global__ void copyRightSideBack(Node* bottomNodes, float* rightSide)
 	rightSide[ordIdx * dProps.rightCount * 3 + dProps.rightCount * 2 + i] = node.x[1][i];
 }
 
-void runComputing(const int size, int iters)
+// size-2 must be divisible by 3 without remainder
+void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 {
 	Properties props = getProperities(size, size);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
@@ -478,6 +484,7 @@ void runComputing(const int size, int iters)
 	float* dLeftSide = nullptr;
 	float* dRightSide = nullptr;
 	generateTestEquation(size, props.rightCount, &leftSide, &rightSide);
+
 	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
 	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
@@ -487,28 +494,33 @@ void runComputing(const int size, int iters)
 	start = clock();
 	for (int i = 0; i < iters; i++)
 	{
+		if (bitmapPath != nullptr)
+			rightSide = generateBitmapRightSide(bitmapPath, size - 2);
 		ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
 		ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
 		ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
+		if (bitmapPath != nullptr)
+			delete[] rightSide;
+//		showMemoryConsumption();
 		run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 		ERRCHECK(cudaMemcpy(dLeftSide, leftSideCopy, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
 		copyRightSideBack << <BLOCKS(props.bottomNodes*props.rightCount), THREADS >> >(dNodes + props.remainingNodes, dRightSideCopy);
 		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
+		ERRCHECK(cudaDeviceSynchronize());//copy last two right side rows
 		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(float) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));
-		//	ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
-		//	for (int i = 0; i < props.leftCount; i++)
-		//	{
-		//		for (int j = 0; j < props.rightCount; j++)
-		//		{
-		//			printf("%.2f ", rightSide[i * props.rightCount + j]);
-		//		}
-		//		printf("\n");
-		//	}
-		//	printf("\n");
-		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
-		ERRCHECK(cudaGetLastError());
-		ERRCHECK(cudaDeviceSynchronize());
+		//			ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+		//			for (int i = 0; i < props.leftCount; i++)
+		//			{
+		//				for (int j = 0; j < props.rightCount; j++)
+		//				{
+		//					printf("%.2f ", rightSide[i * props.rightCount + j]);
+		//				}
+		//				printf("\n");
+		//			}
+		//			printf("\n");
+//		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
+//		ERRCHECK(cudaGetLastError());
+//		ERRCHECK(cudaDeviceSynchronize());
 	}
 	end = clock();
 	printf("time %f\n", ((float)(end - start) / CLOCKS_PER_SEC) / iters);
@@ -528,7 +540,8 @@ void runComputing(const int size, int iters)
 	//	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	//	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	delete[] leftSide;
-	delete[] rightSide;
+	if (bitmapPath == nullptr)
+		delete[] rightSide;
 	delete[] rightSideMem;
 	delete[] nodes;
 	ERRCHECK(cudaFree(dRightSide));
@@ -540,17 +553,34 @@ void runComputing(const int size, int iters)
 
 int main()
 {
-//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled44.bmp",11);
-//	runComputing(65, 1000);
-//	runComputing(128, 1000);
-//	runComputing(255, 1000);
-//	runComputing(512, 1000);
-//	runComputing(1022, 1000);
-//			float * left;
-//			float * right;
-//			generateTestEquation(14, 1, &left, &right);
-//			testRun(14);
+	//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
+	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled12.bmp",3);
+//	measureGenBitmap("C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe20.bmp", 510, 1);
+//	runComputing(14, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e12ppe40.bmp");
+//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe40.bmp");
+//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe40.bmp");
+//		runComputing(65, 100);
+//		runComputing(128, 100);
+//		runComputing(255, 100);
+//		runComputing(512, 100);
+//		runComputing(1022, 100);
+//		runComputing(2048, 100);
+//		runComputing(4097, 100);
+//		runComputing(6146, 30);
+//		runComputing(8192, 30);
+//		runComputing(65, 1);
+//		runComputing(128, 1);
+//		runComputing(255, 1);
+//		runComputing(512, 1);
+//		runComputing(1022, 1);
+//		runComputing(2048, 1);
+//		runComputing(4097, 1);
+//		runComputing(6146, 1);
+//		runComputing(8192, 1);
+	//			float * left;
+	//			float * right;
+	//			generateTestEquation(14, 1, &left, &right);
+	//			testRun(44);
 	//	testMultipleRun(1,1022);
 	//	getch();
 	//	testDistributeInputAmongNodes();

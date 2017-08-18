@@ -2,6 +2,8 @@
 #include <host_defines.h>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include <time.h>
+#include <pplinterface.h>
 
 struct BSpline2d
 {
@@ -21,3 +23,7 @@ struct BitpamData
 extern __constant__ BSpline2d dSplines;
 
 float* generateBitmapRightSide(char* bpmPath, int elements);
+
+void measureGenBitmap(char* bmpPath, int elements, int iters);
+
+BSpline2d generateTestBSplineIntegrals(int pixels, int elements);
