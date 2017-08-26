@@ -337,7 +337,7 @@ void eliminateFirstRow(Node* dNodes, Properties props) //5x5 matrices
 
 void eliminateRoot(Node* dNodes, Properties props)
 {
-//	mergeRightSideLayer << <1, props.rightCount>> >(dNodes, 0, props.rightCount); less than 1024
+	//	mergeRightSideLayer << <1, props.rightCount>> >(dNodes, 0, props.rightCount); less than 1024
 	mergeRightSideLayer << <BLOCKS(props.rightCount), THREADS>> >(dNodes, 0, props.rightCount);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
@@ -483,8 +483,8 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 	Node* dNodes = nullptr;
 	float* dLeftSide = nullptr;
 	float* dRightSide = nullptr;
-	generateTestEquation(size, props.rightCount, &leftSide, &rightSide);
-
+	if (bitmapPath == nullptr)
+		generateTestEquation(size, props.rightCount, &leftSide, &rightSide);
 	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
 	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
@@ -495,32 +495,90 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 	for (int i = 0; i < iters; i++)
 	{
 		if (bitmapPath != nullptr)
-			rightSide = generateBitmapRightSide(bitmapPath, size - 2);
+		{
+			BSpline2d bSplines;
+			rightSide = generateBitmapRightSide(bitmapPath, size - 2, &bSplines);
+//			rightSide = cutSquare(rightSide, size, props.rightCount);
+//			printf("begpoint\n");
+//			for (int i = 0; i < props.leftCount; i++)
+//			{
+//				for (int j = 0; j < props.rightCount; j++)
+//				{
+//					printf("%.2f ", rightSide[i * props.rightCount + j]);
+//				}
+//				printf("\n");
+//			}
+//			printf("begpointend\n");
+			leftSide = generateBitmapLeftSide(bSplines, size);
+			printLeftAndRight(leftSide, rightSide, size,props.rightCount);
+		}
+
 		ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
 		ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
 		ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
-		if (bitmapPath != nullptr)
-			delete[] rightSide;
-//		showMemoryConsumption();
+		//		showMemoryConsumption();
 		run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
-		ERRCHECK(cudaMemcpy(dLeftSide, leftSideCopy, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
+		//copy last two right side rows
+		//PUT RESULT INTO ONE ARRAY
 		copyRightSideBack << <BLOCKS(props.bottomNodes*props.rightCount), THREADS >> >(dNodes + props.remainingNodes, dRightSideCopy);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());//copy last two right side rows
 		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(float) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));
-		//			ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
-		//			for (int i = 0; i < props.leftCount; i++)
-		//			{
-		//				for (int j = 0; j < props.rightCount; j++)
-		//				{
-		//					printf("%.2f ", rightSide[i * props.rightCount + j]);
-		//				}
-		//				printf("\n");
-		//			}
-		//			printf("\n");
-//		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
-//		ERRCHECK(cudaGetLastError());
-//		ERRCHECK(cudaDeviceSynchronize());
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		//		COPY RIGHT SIDE BACK END
+		printf("midpoint\n");
+		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < props.leftCount; i++)
+		{
+			for (int j = 0; j < props.rightCount; j++)
+			{
+				printf("%.4f ", rightSide[i * props.rightCount + j]);
+			}
+			printf("\n");
+		}
+		printf("midpointend\n");
+		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+//		printf("transpoint\n");
+		ERRCHECK(cudaMemcpy(rightSide, dRightSide, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+//		for (int i = 0; i < props.leftCount; i++)
+//		{
+//			for (int j = 0; j < props.rightCount; j++)
+//			{
+//				printf("%.2f ", rightSide[i * props.rightCount + j]);
+//			}
+//			printf("\n");
+//		}
+//		printf("transpointend\n");
+		//RUN FOR TRANSPOSED MATRIX
+//		ERRCHECK(cudaMemcpy(leftSide, dLeftSide, sizeof(float)*props.leftSize, cudaMemcpyDeviceToHost));
+		printLeftAndRight(leftSide, rightSide, size, props.rightCount);
+		run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
+		//PUT RESULT INTO ONE ARRAY
+		copyRightSideBack << <BLOCKS(props.bottomNodes*props.rightCount), THREADS >> >(dNodes + props.remainingNodes, dRightSideCopy);
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(float) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));//copy last two right side rows
+		ERRCHECK(cudaGetLastError());
+		ERRCHECK(cudaDeviceSynchronize());
+		if (bitmapPath != nullptr)
+		{
+			delete[] rightSide;
+			delete[] leftSide;
+		}
+		printf("endpoint\n");
+		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(float)*props.rightSize, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < props.leftCount; i++)
+		{
+			for (int j = 0; j < props.rightCount; j++)
+			{
+				printf("%.4f ", rightSide[i * props.rightCount + j]);
+			}
+			printf("\n");
+		}
+		printf("endpointend\n");
 	}
 	end = clock();
 	printf("time %f\n", ((float)(end - start) / CLOCKS_PER_SEC) / iters);
@@ -534,14 +592,18 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 	//		printf("\n");
 	//	}
 	//	printf("\n");
-
+	float* solution = new float[size * size];
+	cudaMemcpy(solution, dRightSideCopy, sizeof(float) * props.rightSize, cudaMemcpyDeviceToHost);
+	getBitmapApprox(solution, size - 2, 12);
 	//run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 
 	//	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
 	//	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
-	delete[] leftSide;
 	if (bitmapPath == nullptr)
+	{
+		delete[] leftSide;
 		delete[] rightSide;
+	}
 	delete[] rightSideMem;
 	delete[] nodes;
 	ERRCHECK(cudaFree(dRightSide));
@@ -553,30 +615,37 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 
 int main()
 {
+	//	generate2DSplineIntegrals(9, 3);
 	//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
-	generateBitmapRightSide("C:/Users/quirell/Pictures/Untitled12.bmp",3);
-//	measureGenBitmap("C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe20.bmp", 510, 1);
-//	runComputing(14, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e12ppe40.bmp");
-//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe40.bmp");
-//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe40.bmp");
-//		runComputing(65, 100);
-//		runComputing(128, 100);
-//		runComputing(255, 100);
-//		runComputing(512, 100);
-//		runComputing(1022, 100);
-//		runComputing(2048, 100);
-//		runComputing(4097, 100);
-//		runComputing(6146, 30);
-//		runComputing(8192, 30);
-//		runComputing(65, 1);
-//		runComputing(128, 1);
-//		runComputing(255, 1);
-//		runComputing(512, 1);
-//		runComputing(1022, 1);
-//		runComputing(2048, 1);
-//		runComputing(4097, 1);
-//		runComputing(6146, 1);
-//		runComputing(8192, 1);
+	//	generateBitmapRightSide("C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe15white.bmp",253);
+	//	measureGenBitmap("C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe20.bmp", 510, 1);
+//	runComputing(11, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/2px9.bmp");
+	runComputing(11, 1);
+	//	runComputing(255, 10, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe40.bmp");
+	//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe40.bmp");
+	//		runComputing(65, 100);
+	//		runComputing(128, 100);
+	//		runComputing(255, 100);
+	//		runComputing(512, 100);
+	//		runComputing(1022, 100);
+	//		runComputing(2048, 100);
+	//		runComputing(4097, 100);
+	//		runComputing(6146, 30);
+	//		runComputing(8192, 30);
+	//		runComputing(65, 1);
+	//		runComputing(128, 1);
+	//		runComputing(255, 1);
+	//		runComputing(512, 1);
+	//		runComputing(1022, 1);
+	//		runComputing(2048, 1);
+	//		runComputing(4097, 1);
+	//		runComputing(6146, 1);
+	//		runComputing(8192, 1);
+	//		runComputing(65, 30, "C:/Users/quirell/Desktop/magisterka/bitmapy/e63ppe15.bmp");
+	//		runComputing(128, 30, "C:/Users/quirell/Desktop/magisterka/bitmapy/e126ppe15.bmp");
+	//		runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe15white.bmp");
+	//		runComputing(512, 15, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe15.bmp");
+	//		runComputing(1022,1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e1020ppe15.bmp");
 	//			float * left;
 	//			float * right;
 	//			generateTestEquation(14, 1, &left, &right);
@@ -587,6 +656,9 @@ int main()
 	//		getch();
 	//			ERRCHECK(cudaSetDevice(0));
 	//			testGaussianElimination();
+	//	float * x, * y;
+	//	int s = 8129;
+	//	generateTestEquation(s,s, &x,&y);
 	getch();
 	return 0;
 }

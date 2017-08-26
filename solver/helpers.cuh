@@ -37,3 +37,7 @@ struct Bitmap
 };
 
 Bitmap readBmp(char* filename);
+
+void printLeftAndRight(float * left, float * right, int size, int rsize = 0);
+
+float * cutSquare(float * input, int size, int targetCol);

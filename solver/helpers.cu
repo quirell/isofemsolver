@@ -43,7 +43,7 @@ void fillRightSide(float value, int row, float* rightSide, int rightCount)
 {
 	for (int i = 0; i < rightCount; i++)
 	{
-		rightSide[row * rightCount + i] = value;
+		rightSide[row * rightCount + i] = value*(i+1);
 	}
 }
 
@@ -73,11 +73,11 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	float* rightSide = new float[rightCount * leftCount];
 	for (int i = 0; i < leftCount * 5; i += 5)
 	{
-		leftSide[i] = 1;
-		leftSide[i + 1] = 1;
-		leftSide[i + 2] = 5;
-		leftSide[i + 3] = 1;
-		leftSide[i + 4] = 1;
+		leftSide[i] = 0.09766;
+		leftSide[i + 1] = 0.85938;
+		leftSide[i + 2] = 2.08594;
+		leftSide[i + 3] = 0.85938;
+		leftSide[i + 4] = 0.09766;
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
@@ -107,31 +107,60 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	//		}
 	//		printf("\n");
 	//	}
-//		int before = 0;
-//		int after = leftCount-1;
-//		for (int i = 0; i < leftCount; i++)
-//		{
-//			for (int i = 0; i < before; i++)
-//				printf("0 ");
-//			for (int j = 0; j < 5; j++)
-//			{
-//				printf("%.0f ", leftSide[i * 5 + j]);
-//			}
-//			for (int i = 0; i < after; i++)
-//				printf("0 ");
-//			printf(" |  ");
-//			for (int j = 0; j < rightCount; j++)
-//			{
-//				printf("%.0f ", rightSide[i * rightCount + j]);
-//			}
-//			printf("\n");
-//			before++;
-//			after--;
-//		}
+		int before = 0;
+		int after = leftCount-1;
+		for (int i = 0; i < leftCount; i++)
+		{
+			for (int i = 0; i < before; i++)
+				printf("0 ");
+			for (int j = 0; j < 5; j++)
+			{
+				printf("%.0f ", leftSide[i * 5 + j]);
+			}
+			for (int i = 0; i < after; i++)
+				printf("0 ");
+			printf(" |  ");
+			for (int j = 0; j < rightCount; j++)
+			{
+				printf("%.0f ", rightSide[i * rightCount + j]);
+			}
+			printf("\n");
+			before++;
+			after--;
+		}
 
 	//	getch();
 }
 
+void printLeftAndRight(float * left,float * right,int size,int rsize)
+{
+	if (rsize == 0)
+		rsize = size;
+	printf("LEFT AND RIGHT\n");
+	int before = 0;
+	int after = size - 1;
+	for (int i = 0; i < size; i++)
+	{
+		for (int i = 0; i < before; i++)
+			printf("0 ");
+		for (int j = 0; j < 5; j++)
+		{
+			printf("%.5f ", left[i * 5 + j]);
+		}
+		for (int i = 0; i < after; i++)
+			printf("0 ");
+		printf(" |  ");
+		for (int j = 0; j < rsize; j++)
+		{
+			printf("%.5f ", right[i * rsize + j]);
+		}
+		printf("\n");
+		before++;
+		after--;
+	}
+	printf("END LEFT AND RIGHT\n");
+
+}
 
 void showMemoryConsumption()
 {
@@ -227,10 +256,33 @@ Bitmap readBmp(char* filename)
 		{
 			//int index = j / 3 + width*i;// upside down
 			int index = (j / 3) * width + i; //rotated 90 right
-			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j]) / 255;
+			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j]);
 		}
 	}
 	free(data);
 	fclose(fd);
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
+			printf("%f ", bitmap[i*width + j]);
+		}
+		printf("\n");
+	}
+	printf("endbitmap\n");
 	return Bitmap(bitmap, width, height);
+}
+
+float * cutSquare(float * input,int size,int targetCol)
+{
+	float * result = new float[size*targetCol];
+	for(int i = 0;i<size;i++)
+	{
+		for(int j = 0;j<targetCol;j++)
+		{
+			result[i*targetCol + j] = input[i*size + j]*255;
+		}
+	}
+	delete[] input;
+	return result;
 }

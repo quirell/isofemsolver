@@ -3,25 +3,26 @@
 #define THREADS 32 //THREADS MUST BE SET TO 32
 __constant__ BSpline2d dSplines;
 
-BSpline2d generateTestBSplineIntegrals(int pixels,int elements)
+BSpline2d generateTestBSplineIntegrals(int pixels, int elements)
 {
 	int const pxPerElem = pixels / elements;
 	int const pxPerSpline = 3 * pxPerElem;
-	double const pxSpan = 1.0 / pixels;
 	double* spline = new double[pxPerSpline];
-	for (int i = 0; i < 3*pxPerElem; i++)
+	for (int i = 0; i < 3 * pxPerElem; i++)
 	{
 		spline[i] = 1.0L / pxPerElem;
 	}
 
 	float* spline2D = new float[pxPerSpline * pxPerSpline];
 	float sum = 0;
+	double sump[3][3] = { 0 };
 	for (int i = 0; i < pxPerSpline; i++)
 	{
 		for (int j = 0; j < pxPerSpline; j++)
 		{
 			spline2D[i * pxPerSpline + j] = spline[i] * spline[j];
 			sum += spline2D[i * pxPerSpline + j];
+			sump[i / pxPerElem][j / pxPerElem] += spline2D[i * pxPerSpline + j];
 		}
 	}
 
@@ -29,7 +30,32 @@ BSpline2d generateTestBSplineIntegrals(int pixels,int elements)
 	bs.spline = spline2D;
 	bs.size = pxPerSpline;
 	bs.sum = sum;
+//	sump[0][0] = 1;
+//	sump[0][1] = 2;
+//	sump[0][2] = 1;
+//	sump[1][0] = 1;
+//	sump[1][1] = 9;
+//	sump[1][2] = 1;
+//	sump[2][0] = 1;
+//	sump[2][1] = 2;
+//	sump[2][2] = 1;
+	memcpy(&bs.sump, &sump, sizeof(sump));
 	return bs;
+}
+
+double inline spline1(double x, double elemSpan)
+{
+	return (x * x) / (2 * elemSpan * elemSpan);
+}
+
+double inline spline2(double x, double elemSpan)
+{
+	return (x * (2 * elemSpan - x) + (3 * elemSpan - x) * (x - elemSpan)) / (2 * elemSpan * elemSpan);
+}
+
+double inline spline3(double x, double elemSpan)
+{
+	return (3 * elemSpan - x) * (3 * elemSpan - x) / (2 * elemSpan * elemSpan);
 }
 
 BSpline2d generate2DSplineIntegrals(int pixels, int elements)
@@ -39,34 +65,40 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 	double const pxSpan = 1.0 / pixels;
 	double const elemSpan = 1.0 / (elements);
 	double* spline = new double[pxPerSpline];
-	double x = 0;
+	double x = pxSpan/2;
+	double sumf = 0;
 	for (int i = 0; i < pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = (x * x) / (2 * elemSpan * elemSpan);
+		spline[i] = spline1(x, elemSpan);
+		sumf += spline[i];
 	}
 	for (int i = pxPerElem; i < 2 * pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = (x * (2 * elemSpan - x) + (3 * elemSpan - x) * (x - elemSpan)) / (2 * elemSpan * elemSpan);
+		spline[i] = spline2(x, elemSpan);
+		sumf += spline[i];
 	}
 	for (int i = 2 * pxPerElem; i < 3 * pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = (3 * elemSpan - x) * (3 * elemSpan - x) / (2 * elemSpan * elemSpan);
+		spline[i] = spline3(x, elemSpan);
+		sumf += spline[i];
 	}
 	float* spline2D = new float[pxPerSpline * pxPerSpline];
-	float sum = 0;
+	double sum = 0;
+	double sump[3][3] = {0};
 	for (int i = 0; i < pxPerSpline; i++)
 	{
 		for (int j = 0; j < pxPerSpline; j++)
 		{
 			spline2D[i * pxPerSpline + j] = spline[i] * spline[j];
 			sum += spline2D[i * pxPerSpline + j];
+			sump[i / pxPerElem][j / pxPerElem] += spline2D[i * pxPerSpline + j];
 		}
 	}
-
 	BSpline2d bs;
 	bs.spline = spline2D;
 	bs.size = pxPerSpline;
 	bs.sum = sum;
+	memcpy(&bs.sump, &sump, sizeof(sump));
 	return bs;
 }
 
@@ -113,7 +145,7 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 		{
 			int splineCol = (col + splineColDispl) % dSplines.size;
 			int splineIdx = (row % pixPerElem + splineRowDispl) * dSplines.size + splineCol; //spline row + spline col
-			toSum[threadIdx.x] = pixel * dSplineArray[splineIdx] * area;
+			toSum[threadIdx.x] = pixel * dSplineArray[splineIdx];
 			int t = threads;
 			int h = half;
 			while (threadIdx.x - elemStart < t) // size/=2
@@ -133,7 +165,6 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 				elem = (elem + splinePart + rowShift);
 
 				atomicAdd(toWrite + elem, toSum[threadIdx.x]); //mozna zastapic atomc add dodając 3 razy wiecej pamieci toWrite i watki sumuja modulo, a potem sumuje sie te 3 bloki pamiec
-
 			}
 		}
 		//		__syncthreads();//?
@@ -152,7 +183,7 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 }
 
 //threads = elem2*elem2
-__global__ void sumVerticalPxels(float* dRightSide, float* dOut, int elements2, int pixPerElem)
+__global__ void sumVerticalPxels(float* dRightSide, float* dOut, int elements2, int pixPerElem,float area)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= elements2 * elements2)
@@ -165,7 +196,7 @@ __global__ void sumVerticalPxels(float* dRightSide, float* dOut, int elements2, 
 		int col = idx % elements2;
 		sum += dRightSide[elemStartRow + col + row];
 	}
-	dOut[idx] = sum;
+	dOut[idx] = sum*area;
 }
 
 //threads = elements2*pixPerElem*elements2
@@ -185,7 +216,7 @@ __global__ void sumBlocks(float* dRightSide, int memoryBlocks, int memBlockSize)
 //width and height of bitmap must be equal, and moreover, size of bitmap must be divisible without remainder by number of elements
 #define BLOCKS(N) (N+THREADS-1)/THREADS
 
-float* generateBitmapRightSide(char* bpmPath, int elements)
+float* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpline)
 {
 	int elements2 = elements + 2;
 	Bitmap bitmap = readBmp(bpmPath);
@@ -194,6 +225,9 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	float* dBitmap = nullptr;
 	BSpline2d bSplines = generate2DSplineIntegrals(bitmap.width, elements);
 //	BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements);
+	if (outBSpline != nullptr)
+		*outBSpline = bSplines;
+	//	BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements); //FOR TESTING
 	//	for (int i = 0; i < bSplines.size; i++) {
 	//		for (int j = 0; j < bSplines.size; j++)
 	//			printf("%f ", bSplines.spline[i*bSplines.size+j]);
@@ -216,20 +250,22 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	sharedMemorySize += 2 + 2 * sharedMemorySize / elements + 4;//+ number of rows in elements, every row extends mem size by 2, +4 account for additional first and last element
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
 	int idleThreads = totalThreads - bitmap.width * bitmap.width;
-	//	float * rightSide = new float[blockSize*numberOfMemoryBlocks]{0}; FOR TESTING
 	float* rightSide = new float[elements2 * elements2];
 	double area = 1.0L / (elements * elements);
-//	double area = 1;
+	//	double area = 1; //FOR TESTING
 
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*blockSize*numberOfMemoryBlocks))
 	ERRCHECK(cudaMemset(dRightSide, 0, sizeof(float)*blockSize*numberOfMemoryBlocks));
+	ERRCHECK(cudaDeviceSynchronize());
 	//	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*blockSize*numberOfMemoryBlocks, cudaMemcpyHostToDevice));
-	showMemoryConsumption();
-	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sizeof(float) * sharedMemorySize >>>(dSplineArray, sharedMemorySize, dBitmap, dRightSide,area, pixPerElem, bitmap.width, numberOfMemoryBlocks, blockSize, elements, elements2, idleThreads);
+	//	showMemoryConsumption();
+	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sizeof(float) * sharedMemorySize >>>(dSplineArray, sharedMemorySize, dBitmap, dRightSide, area, pixPerElem, bitmap.width, numberOfMemoryBlocks, blockSize, elements, elements2, idleThreads);
 	ERRCHECK(cudaGetLastError());
+	ERRCHECK(cudaDeviceSynchronize());
 	sumBlocks<<<BLOCKS(blockSize),THREADS>>>(dRightSide, numberOfMemoryBlocks, blockSize);
 	ERRCHECK(cudaGetLastError());
-	sumVerticalPxels<<<BLOCKS(elements2*elements2),THREADS>>>(dRightSide, dRightSide + blockSize, elements2, pixPerElem);
+	ERRCHECK(cudaDeviceSynchronize());
+	sumVerticalPxels<<<BLOCKS(elements2*elements2),THREADS>>>(dRightSide, dRightSide + blockSize, elements2, pixPerElem,area);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	//	ERRCHECK(cudaMemcpy(rightSide,dRightSide, sizeof(float)*blockSize*numberOfMemoryBlocks, cudaMemcpyDeviceToHost)); FOR TESTING
@@ -259,16 +295,16 @@ float* generateBitmapRightSide(char* bpmPath, int elements)
 	//		printf("\n");
 	//	}
 	//PRINT RESULT
-//		for (int i = 0; i<elements2; i++)
-//		{
-//	
-//			for (int j = 0; j<elements2; j++)
-//			{
-//				printf("%.2f ", *(rightSide + i*elements2 + j));
-//			}
-//			printf("\n");
-//		}
-//		printf("sum: %f\n", bSplines.sum*1.0L / (elements*elements));
+	//		for (int i = 0; i<elements2; i++)
+	//		{
+	//	
+	//			for (int j = 0; j<elements2; j++)
+	//			{
+	//				printf("%.2f ", *(rightSide + i*elements2 + j));
+	//			}
+	//			printf("\n");
+	//		}
+	//		printf("sum: %f\n", bSplines.sum*area);
 	//	return dRightSide;
 	return rightSide;
 }
@@ -286,3 +322,99 @@ void measureGenBitmap(char* bmpPath, int elements, int iters = 1)
 	printf("time %f\n", ((float)(end - start) / CLOCKS_PER_SEC) / iters);
 }
 
+float* generateBitmapLeftSide(BSpline2d bSplines, int elements)
+{
+	int len = elements * 5;
+	float* leftSide = new float[len];
+	double a = bSplines.sump[2][0];
+	double b = bSplines.sump[2][1] + bSplines.sump[1][0];
+	double c = bSplines.sump[2][2] + bSplines.sump[1][1] + bSplines.sump[0][0];
+	double d = bSplines.sump[1][2] + bSplines.sump[0][1];
+	double e = bSplines.sump[0][2];
+	for (int i = 0; i < len; i += 5)
+	{
+		leftSide[i] = a;
+		leftSide[i + 1] = b;
+		leftSide[i + 2] = c;
+		leftSide[i + 3] = d;
+		leftSide[i + 4] = e;
+	}
+	leftSide[0] = 0;
+	leftSide[1] = 0;
+	leftSide[2] = bSplines.sump[0][0];
+	leftSide[3] = bSplines.sump[0][1];
+	leftSide[4] = bSplines.sump[0][2];
+	leftSide[5] = 0;
+	leftSide[6] = bSplines.sump[1][0];
+	leftSide[7] = bSplines.sump[1][1] + bSplines.sump[0][0];
+	leftSide[8] = bSplines.sump[1][2] + bSplines.sump[0][1];
+	leftSide[9] = bSplines.sump[0][2];
+
+	leftSide[len - 10] = bSplines.sump[2][0];
+	leftSide[len - 9] = bSplines.sump[1][0] + bSplines.sump[2][1];
+	leftSide[len - 8] = bSplines.sump[1][1] + bSplines.sump[2][2];
+	leftSide[len - 7] = bSplines.sump[1][2];
+	leftSide[len - 6] = 0;
+	leftSide[len - 5] = bSplines.sump[2][0];
+	leftSide[len - 4] = bSplines.sump[2][1];
+	leftSide[len - 3] = bSplines.sump[2][2];
+	leftSide[len - 2] = 0;
+	leftSide[len - 1] = 0;
+	return leftSide;
+}
+
+float getApprox(float x, float y, float* solution, int elements)
+{
+	double const elemSpan = 1.0 / (elements);
+	int ex = x * elements;
+	int ey = y * elements;
+	double ly = y - elemSpan * (ey - 1);
+	double ly1 = ly + elemSpan;
+	double ly2 = ly1 + elemSpan;
+	double lx = x - elements * (ex - 1);
+	double lx1 = lx + elemSpan;
+	double lx2 = lx1 + elemSpan;
+
+	int elements2 = elements + 2;
+	double approx = 0;
+	approx += spline1(lx, elemSpan) * spline1(ly, elemSpan) * solution[ex * elements2 + ey];
+	approx += spline1(lx, elemSpan) * spline2(ly1, elemSpan) * solution[ex * elements2 + ey + 1];
+	approx += spline1(lx, elemSpan) * spline3(ly2, elemSpan) * solution[ex * elements2 + ey + 2];
+	ex++;
+	approx += spline2(lx1, elemSpan) * spline1(ly, elemSpan) * solution[ex * elements2 + ey];
+	approx += spline2(lx1, elemSpan) * spline2(ly1, elemSpan) * solution[ex * elements2 + ey + 1];
+	approx += spline2(lx1, elemSpan) * spline3(ly2, elemSpan) * solution[ex * elements2 + ey + 2];
+	ex++;
+	approx += spline3(lx2, elemSpan) * spline1(ly, elemSpan) * solution[ex * elements2 + ey];
+	approx += spline3(lx2, elemSpan) * spline2(ly1, elemSpan) * solution[ex * elements2 + ey + 1];
+	approx += spline3(lx2, elemSpan) * spline3(ly2, elemSpan) * solution[ex * elements2 + ey + 2];
+	return approx;
+}
+
+float* getBitmapApprox(float* solution, int elements, int resolution)
+{
+	float* approx = new float[resolution * resolution];
+	double span = 1L / resolution;
+	float x = -span;
+	for (int i = 0; i < resolution; i++)
+	{
+		x += span;
+		float y = -span;
+		for (int j = 0; j < resolution; j++)
+		{
+			y += span;
+			approx[i * resolution + j] = getApprox(x, y, solution, elements);
+		}
+	}
+	printf("beginapprox\n");
+	for (int i = 0; i < resolution; i++)
+	{
+		for (int j = 0; j < resolution; j++)
+		{
+			printf("%f ", approx[i * resolution + j]);
+		}
+		printf("\n");
+	}
+	printf("endapprox\n");
+	return approx;
+}
