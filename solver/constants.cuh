@@ -34,11 +34,16 @@ struct Properties
 };
 
 Properties getProperities(int leftCount, int rightCount);
-
+#define DOUBLE_NUMBER
 extern __constant__ Properties dProps;
-
+#ifdef DOUBLE_NUMBER
+typedef double number;
+#endif
+#ifdef FLOAT_NUMBER
+typedef float number;
+#endif
 struct Node
 {
-	float m[MSIZE];
-	float* x[6];
+	number m[MSIZE];
+	number* x[6];
 };

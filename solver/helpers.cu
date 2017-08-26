@@ -39,7 +39,7 @@ __device__ __host__ void printNode(Node node, int rightCount)
 	printf("\n");
 }
 
-void fillRightSide(float value, int row, float* rightSide, int rightCount)
+void fillRightSide(number value, int row, number* rightSide, int rightCount)
 {
 	for (int i = 0; i < rightCount; i++)
 	{
@@ -48,7 +48,7 @@ void fillRightSide(float value, int row, float* rightSide, int rightCount)
 }
 
 
-void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i, int offset)
+void computeRightSide(int rightCount, number* leftSide, number* rightSide, int i, int offset)
 {
 	int rightSideVal = 0;
 	for (int j = 0; j < 5; j++)
@@ -60,17 +60,17 @@ void computeRightSide(int rightCount, float* leftSide, float* rightSide, int i, 
 	fillRightSide(rightSideVal, i, rightSide, rightCount);
 }
 
-__device__ void printRow(float* m, int start, int count)
+__device__ void printRow(number* m, int start, int count)
 {
 	for (int i = start; i < start + count; i++)
 		printf("%.1f ", m[i]);
 	printf("\n");
 }
 
-void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr)
+void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, number** rightSidePtr)
 {
-	float* leftSide = new float[leftCount * 5];
-	float* rightSide = new float[rightCount * leftCount];
+	number* leftSide = new number[leftCount * 5];
+	number* rightSide = new number[rightCount * leftCount];
 	for (int i = 0; i < leftCount * 5; i += 5)
 	{
 		leftSide[i] = 0.09766;
@@ -132,7 +132,7 @@ void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, fl
 	//	getch();
 }
 
-void printLeftAndRight(float * left,float * right,int size,int rsize)
+void printLeftAndRight(number * left,number * right,int size,int rsize)
 {
 	if (rsize == 0)
 		rsize = size;
@@ -230,8 +230,8 @@ Bitmap readBmp(char* filename)
 	//		return;
 	//	}
 
-	float* bitmap = nullptr;
-	bitmap = new float[width * height];
+	number* bitmap = nullptr;
+	bitmap = new number[width * height];
 
 	// Allocate temporary memory to read widthnew size of data
 
@@ -273,9 +273,9 @@ Bitmap readBmp(char* filename)
 	return Bitmap(bitmap, width, height);
 }
 
-float * cutSquare(float * input,int size,int targetCol)
+number * cutSquare(number * input,int size,int targetCol)
 {
-	float * result = new float[size*targetCol];
+	number * result = new number[size*targetCol];
 	for(int i = 0;i<size;i++)
 	{
 		for(int j = 0;j<targetCol;j++)

@@ -163,9 +163,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="bitmap_approx.cu" />
     <CudaCompile Include="constants.cu" />
     <CudaCompile Include="helpers.cu" />
-    <CudaCompile Include="kernel.cu">
-      <FileType>Document</FileType>
-    </CudaCompile>
     <CudaCompile Include="test_functions.cu" />
   </ItemGroup>
   <ItemGroup>

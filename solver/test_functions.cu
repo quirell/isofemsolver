@@ -5,7 +5,7 @@
 #include "solver.cuh"
 #include <ctime>
 //copied from solver.cuh assignRightNodeMem
-void assignRightNodeMemHost(Node* nodes, float* rightSideMem, int nodeIdx, Properties props)
+void assignRightNodeMemHost(Node* nodes, number* rightSideMem, int nodeIdx, Properties props)
 {
 	Node* node = &nodes[nodeIdx];
 	int start = nodeIdx * props.rightCount * 6;
@@ -17,7 +17,7 @@ void assignRightNodeMemHost(Node* nodes, float* rightSideMem, int nodeIdx, Prope
 	node->x[5] = rightSideMem + start + props.rightCount * 5;
 }
 
-void assignHostRightSide(Properties props, Node* nodes, float* rightSideMem)
+void assignHostRightSide(Properties props, Node* nodes, number* rightSideMem)
 {
 	for (int i = 0; i < props.heapNodes; i++)
 	{
@@ -25,7 +25,7 @@ void assignHostRightSide(Properties props, Node* nodes, float* rightSideMem)
 	}
 }
 
-void leftSideInit(float* leftSide, int size)
+void leftSideInit(number* leftSide, int size)
 {
 	for (int i = 0; i < size; i++)
 	{
@@ -37,23 +37,23 @@ void testDistributeInputAmongNodes()
 {
 	Properties props = getProperities(17, 1);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float* leftSide;
-	float* rightSide;
-	float* dRightSideMem;
-	float* rightSideMem = new float[props.rightSizeMem];
+	number* leftSide;
+	number* rightSide;
+	number* dRightSideMem;
+	number* rightSideMem = new number[props.rightSizeMem];
 	generateTestEquation(17, 1, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;
-	float* dLeftSide = nullptr;
-	float* dRightSide = nullptr;
+	number* dLeftSide = nullptr;
+	number* dRightSide = nullptr;
 	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
 	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
-	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
-	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(float)*props.rightSizeMem));
+	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(number)*props.leftSize));
+	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(number)*props.leftSize, cudaMemcpyHostToDevice));
+	ERRCHECK(cudaMalloc(&dRightSide, sizeof(number)*props.rightSize));
+	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(number)*props.rightSize, cudaMemcpyHostToDevice));
+	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(number)*props.rightSizeMem));
 	distributeInputAmongNodes(dNodes, dLeftSide, dRightSideMem, dRightSide, props);
 	for (int start = PARENT(props.lastLevelStartIdx), nodesCount = props.beforeLastLevelNotBottomNodes; start > 0; nodesCount = (start + 1) / 2 , start = PARENT(start))//order matters
 	{
@@ -77,7 +77,7 @@ void testDistributeInputAmongNodes()
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
-	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
+	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(number)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, nodes, rightSideMem);
 	printAllNodes(nodes, 0, props);
 }
@@ -87,26 +87,26 @@ void testRun(const int size)
 	const int rsize = 1;
 	Properties props = getProperities(size, rsize);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
-	float* leftSide = nullptr;
-	float* rightSide = nullptr;
-	float* dRightSideMem = nullptr;
-	float* rightSideMem = new float[dProps.rightSizeMem];
+	number* leftSide = nullptr;
+	number* rightSide = nullptr;
+	number* dRightSideMem = nullptr;
+	number* rightSideMem = new number[dProps.rightSizeMem];
 	generateTestEquation(size, rsize, &leftSide, &rightSide);
 	Node* nodes = new Node[props.heapNodes];
 	memset(nodes, 0, props.heapNodes * sizeof(Node));
 	Node* dNodes = nullptr;
-	float* dLeftSide = nullptr;
-	float* dRightSide = nullptr;
+	number* dLeftSide = nullptr;
+	number* dRightSide = nullptr;
 	ERRCHECK(cudaMalloc(&dNodes, sizeof(Node)* props.heapNodes));
 	ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
-	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(float)*props.leftSize));
-	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(float)*props.leftSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*props.rightSize));
-	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*props.rightSize, cudaMemcpyHostToDevice));
-	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(float)*props.rightSizeMem));
+	ERRCHECK(cudaMalloc(&dLeftSide, sizeof(number)*props.leftSize));
+	ERRCHECK(cudaMemcpy(dLeftSide, leftSide, sizeof(number)*props.leftSize, cudaMemcpyHostToDevice));
+	ERRCHECK(cudaMalloc(&dRightSide, sizeof(number)*props.rightSize));
+	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(number)*props.rightSize, cudaMemcpyHostToDevice));
+	ERRCHECK(cudaMalloc(&dRightSideMem, sizeof(number)*props.rightSizeMem));
 	run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
-	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(float)*props.rightSizeMem, cudaMemcpyDeviceToHost));
+	ERRCHECK(cudaMemcpy(rightSideMem, dRightSideMem, sizeof(number)*props.rightSizeMem, cudaMemcpyDeviceToHost));
 	assignHostRightSide(props, nodes, rightSideMem);
 	printAllNodes(nodes, 0, props);
 //	delete [] leftSide;
@@ -127,10 +127,10 @@ void testMultipleRun(int n, int size)
 	for (int i = 0; i < n; i++)
 		testRun(size);
 	end = clock();
-	printf("time %f\n", (float)(end - start) / CLOCKS_PER_SEC);
+	printf("time %f\n", (number)(end - start) / CLOCKS_PER_SEC);
 }
 
-__global__ void assignTestRightSide(Node* node, float* x)
+__global__ void assignTestRightSide(Node* node, number* x)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= 1)
@@ -148,7 +148,7 @@ void testGaussianElimination()
 	Properties props = getProperities(6, 4);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
 	Node node;
-	//	float m[] = {
+	//	number m[] = {
 	//		1, 1, -2, 1, 3, -1,
 	//		2, -1, 1, 2, 1, -3,
 	//		1, 3, -3, -1, 2, 1,
@@ -156,21 +156,21 @@ void testGaussianElimination()
 	//		-3, -1, 2, 3, 1, 3,
 	//		4, 3, 1, -6, -3, -2
 	//	};
-	//	float x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
-	float m[] = {1.0 , 0.0 , -0.5 , 0.5 , -0.5 , -0.5 ,
+	//	number x[] = {4,4,4,4,20,20,20,20,-15,-15,-15,-15,-3,-3,-3,-3,16,16,16,16,-27,-27,-27,-27};
+	number m[] = {1.0 , 0.0 , -0.5 , 0.5 , -0.5 , -0.5 ,
 		0.0 , 1.0 , -0.5 , 0.5 , 0.5 , 0.5 ,
 		-0.5 , -0.5 , 0.5 , 3.5 , 0.0 , 0.0 ,
 		0.5 , 0.5 , 3.5 , 0.5 , 0.0 , 0.0 ,
 		-0.5 , 0.5 , 0.0 , 0.0 , 2.5 , 0.5 ,
 		-0.5 , 0.5 , 0.0 , 0.0 , 0.5 , 2.5};
-	float x[] = {0,0,0,0,0,0,0,0,2,2,2,2,4,4,4,4,4,4,4,4,2,2,2,2};
-	memcpy(node.m, m, sizeof(float) * MSIZE);
+	number x[] = {0,0,0,0,0,0,0,0,2,2,2,2,4,4,4,4,4,4,4,4,2,2,2,2};
+	memcpy(node.m, m, sizeof(number) * MSIZE);
 	assignHostRightSide(props, &node, x);
 	Node* dNode;
 	printNode(node, props.rightCount);
 	ERRCHECK(cudaMalloc(&dNode, sizeof(Node)));
 	ERRCHECK(cudaMemcpy(dNode, &node, sizeof(Node), cudaMemcpyHostToDevice));
-	float* dX;
+	number* dX;
 	ERRCHECK(cudaMalloc(&dX, sizeof(x)));
 	ERRCHECK(cudaMemcpy(dX, &x, sizeof(x), cudaMemcpyHostToDevice));
 	assignTestRightSide << <1, 1 >> >(dNode, dX);
@@ -190,7 +190,7 @@ void testGaussianElimination()
 	printNode(node, props.rightCount);
 	ERRCHECK(cudaMemcpy(x, dX, sizeof(x), cudaMemcpyDeviceToHost));
 	printNode(node, props.rightCount);
-	float c[] = {1,-2,3,4,2,-1};
+	number c[] = {1,-2,3,4,2,-1};
 	for (int i = 0; i < 6; i++)
 	{
 		printf("%.1f ", c[i]);

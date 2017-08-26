@@ -21,23 +21,23 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
 void printAllNodes(Node* nodes, int nodesStart, Properties props);
 __device__ __host__ void printNode(Node node, int rightCount);
 
-void fillRightSide(float value, int row, float* rightSide, int rightCount);
-void generateTestEquation(int leftCount, int rightCount, float** leftSidePtr, float** rightSidePtr);
+void fillRightSide(number value, int row, number* rightSide, int rightCount);
+void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, number** rightSidePtr);
 
 void showMemoryConsumption();
 
-void printRow(float * m, int start, int count);
+void printRow(number * m, int start, int count);
 
 struct Bitmap
 {
-	float * bitmap;
+	number * bitmap;
 	int width;
 	int height;
-	Bitmap(float * bmp, int w, int h) :bitmap(bmp), width(w), height(h) {}
+	Bitmap(number * bmp, int w, int h) :bitmap(bmp), width(w), height(h) {}
 };
 
 Bitmap readBmp(char* filename);
 
-void printLeftAndRight(float * left, float * right, int size, int rsize = 0);
+void printLeftAndRight(number * left, number * right, int size, int rsize = 0);
 
-float * cutSquare(float * input, int size, int targetCol);
+number * cutSquare(number * input, int size, int targetCol);
