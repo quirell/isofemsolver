@@ -527,17 +527,17 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 		//		COPY RIGHT SIDE BACK END
-		printf("midpoint\n");
-		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
-		for (int i = 0; i < props.leftCount; i++)
-		{
-			for (int j = 0; j < props.rightCount; j++)
-			{
-				printf("%.4f ", rightSide[i * props.rightCount + j]);
-			}
-			printf("\n");
-		}
-		printf("midpointend\n");
+//		printf("midpoint\n");
+//		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
+//		for (int i = 0; i < props.leftCount; i++)
+//		{
+//			for (int j = 0; j < props.rightCount; j++)
+//			{
+//				printf("%.4f ", rightSide[i * props.rightCount + j]);
+//			}
+//			printf("\n");
+//		}
+//		printf("midpointend\n");
 		transpose32 << <dim3((props.leftCount + TILE_DIM) / TILE_DIM, (props.rightCount + TILE_DIM) / TILE_DIM), dim3(TILE_DIM, BLOCK_ROWS) >> >(dRightSide, dRightSideCopy, props.leftCount, props.rightCount);
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
@@ -563,11 +563,6 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(number) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));//copy last two right side rows
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		if (bitmapPath != nullptr)
-		{
-			delete[] rightSide;
-			delete[] leftSide;
-		}
 		printf("endpoint\n");
 		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
 		for (int i = 0; i < props.leftCount; i++)
@@ -579,6 +574,11 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 			printf("\n");
 		}
 		printf("endpointend\n");
+		if (bitmapPath != nullptr)
+		{
+			delete[] rightSide;
+			delete[] leftSide;
+		}
 	}
 	end = clock();
 	printf("time %f\n", ((number)(end - start) / CLOCKS_PER_SEC) / iters);
@@ -594,7 +594,7 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 	//	printf("\n");
 	number* solution = new number[size * size];
 	cudaMemcpy(solution, dRightSideCopy, sizeof(number) * props.rightSize, cudaMemcpyDeviceToHost);
-	getBitmapApprox(solution, size - 2, 12);
+	getBitmapApprox(solution, size - 2, size-2);
 	//run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 
 	//	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
@@ -619,8 +619,8 @@ int main()
 	//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
 	//	generateBitmapRightSide("C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe15white.bmp",253);
 	//	measureGenBitmap("C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe20.bmp", 510, 1);
-//	runComputing(11, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/2px9.bmp");
-	runComputing(11, 1);
+	runComputing(14, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/4colors5px12.bmp");
+//	runComputing(11, 1);
 	//	runComputing(255, 10, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe40.bmp");
 	//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe40.bmp");
 	//		runComputing(65, 100);

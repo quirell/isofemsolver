@@ -81,8 +81,22 @@ void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, n
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
+	leftSide[2] = 0.09766;
+	leftSide[3] = 0.42969;
+	leftSide[4] = 0.09766;
 	leftSide[5] = 0;
+	leftSide[6] = 0.42969;
+	leftSide[7] = 1.98828;
+	leftSide[8] = 0.85938;
+	leftSide[9] = 0.09766;
+	leftSide[leftCount * 5 - 10] = 0.09766;
+	leftSide[leftCount * 5 - 9] = 0.85938;
+	leftSide[leftCount * 5 - 8] = 1.98828;
+	leftSide[leftCount * 5 - 7] = 0.42969;
 	leftSide[leftCount * 5 - 6] = 0;
+	leftSide[leftCount * 5 - 5] = 0.09766;
+	leftSide[leftCount * 5 - 4] = 0.42969;
+	leftSide[leftCount * 5 - 3] = 0.09766;
 	leftSide[leftCount * 5 - 2] = 0;
 	leftSide[leftCount * 5 - 1] = 0;
 
@@ -107,27 +121,7 @@ void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, n
 	//		}
 	//		printf("\n");
 	//	}
-		int before = 0;
-		int after = leftCount-1;
-		for (int i = 0; i < leftCount; i++)
-		{
-			for (int i = 0; i < before; i++)
-				printf("0 ");
-			for (int j = 0; j < 5; j++)
-			{
-				printf("%.0f ", leftSide[i * 5 + j]);
-			}
-			for (int i = 0; i < after; i++)
-				printf("0 ");
-			printf(" |  ");
-			for (int j = 0; j < rightCount; j++)
-			{
-				printf("%.0f ", rightSide[i * rightCount + j]);
-			}
-			printf("\n");
-			before++;
-			after--;
-		}
+	printLeftAndRight(leftSide, rightSide, leftCount, rightCount);
 
 	//	getch();
 }
@@ -256,7 +250,7 @@ Bitmap readBmp(char* filename)
 		{
 			//int index = j / 3 + width*i;// upside down
 			int index = (j / 3) * width + i; //rotated 90 right
-			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j]);
+			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j])/255.0L;
 		}
 	}
 	free(data);

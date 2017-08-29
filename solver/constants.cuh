@@ -34,7 +34,7 @@ struct Properties
 };
 
 Properties getProperities(int leftCount, int rightCount);
-#define DOUBLE_NUMBER
+#define FLOAT_NUMBER
 extern __constant__ Properties dProps;
 #ifdef DOUBLE_NUMBER
 typedef double number;

@@ -30,32 +30,24 @@ BSpline2d generateTestBSplineIntegrals(int pixels, int elements)
 	bs.spline = spline2D;
 	bs.size = pxPerSpline;
 	bs.sum = sum;
-	//	sump[0][0] = 1;
-	//	sump[0][1] = 2;
-	//	sump[0][2] = 1;
-	//	sump[1][0] = 1;
-	//	sump[1][1] = 9;
-	//	sump[1][2] = 1;
-	//	sump[2][0] = 1;
-	//	sump[2][1] = 2;
-	//	sump[2][2] = 1;
 	memcpy(&bs.sump, &sump, sizeof(sump));
 	return bs;
 }
 
+
 double inline spline1(double x, double elemSpan)
 {
-	return (x * x) / (2 * elemSpan * elemSpan);
+	return (x * x) / (2* elemSpan * elemSpan);
 }
 
 double inline spline2(double x, double elemSpan)
 {
-	return (x * (2 * elemSpan - x) + (3 * elemSpan - x) * (x - elemSpan)) / (2 * elemSpan * elemSpan);
+	return (x * (2 * elemSpan - x) + (3 * elemSpan - x) * (x - elemSpan)) / (2* elemSpan * elemSpan);
 }
 
 double inline spline3(double x, double elemSpan)
 {
-	return (3 * elemSpan - x) * (3 * elemSpan - x) / (2 * elemSpan * elemSpan);
+	return (3 * elemSpan - x) * (3 * elemSpan - x) / (2* elemSpan * elemSpan);
 }
 
 BSpline2d generate2DSplineIntegrals(int pixels, int elements)
@@ -69,29 +61,32 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 	double sumf = 0;
 	for (int i = 0; i < pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = spline1(x, elemSpan);
+		spline[i] = spline1(x, elemSpan)/pxPerElem;
 		sumf += spline[i];
 	}
 	for (int i = pxPerElem; i < 2 * pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = spline2(x, elemSpan);
+		spline[i] = spline2(x, elemSpan)/pxPerElem;
 		sumf += spline[i];
 	}
 	for (int i = 2 * pxPerElem; i < 3 * pxPerElem; i++ , x = x + pxSpan)
 	{
-		spline[i] = spline3(x, elemSpan);
+		spline[i] = spline3(x, elemSpan)/pxPerElem;
 		sumf += spline[i];
 	}
 	float* spline2D = new float[pxPerSpline * pxPerSpline];
 	double sum = 0;
-	double sump[3][3] = {0};
+	double sump[3][3] = {{1.0L/20,13.0L/120,1.0L/120},
+		{13.0L/120,45.0L/100,13.0L/120},
+		{1.0L/120,13.0L/120,1.0L/20}};
+//	double sump[3][3] = { 0 };
 	for (int i = 0; i < pxPerSpline; i++)
 	{
 		for (int j = 0; j < pxPerSpline; j++)
 		{
 			spline2D[i * pxPerSpline + j] = spline[i] * spline[j];
 			sum += spline2D[i * pxPerSpline + j];
-			sump[i / pxPerElem][j / pxPerElem] += spline2D[i * pxPerSpline + j];
+//			sump[i / pxPerElem][j / pxPerElem] += spline2D[i * pxPerSpline + j];
 		}
 	}
 	BSpline2d bs;
@@ -224,7 +219,7 @@ number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpli
 		throw "Bitmap dimensions must be equal. Bitmap size must be divisible by float of elements without remainder.";
 	float* dBitmap = nullptr;
 	BSpline2d bSplines = generate2DSplineIntegrals(bitmap.width, elements);
-	//	BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements);
+//		BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements);
 	if (outBSpline != nullptr)
 		*outBSpline = bSplines;
 	//	BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements); //FOR TESTING
@@ -251,8 +246,8 @@ number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpli
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
 	int idleThreads = totalThreads - bitmap.width * bitmap.width;
 	float* rightSide = new float[elements2 * elements2];
-	double area = 1.0L / (elements * elements);
-	//	double area = 1; //FOR TESTING
+//	double area = 1.0L / (elements * elements);
+	double area = 1; //FOR TESTING
 
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*blockSize*floatOfMemoryBlocks))
 	ERRCHECK(cudaMemset(dRightSide, 0, sizeof(float)*blockSize*floatOfMemoryBlocks));
@@ -350,23 +345,23 @@ number* generateBitmapLeftSide(BSpline2d bSplines, int elements)
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
-	leftSide[2] = bSplines.sump[0][0];
-	leftSide[3] = bSplines.sump[0][1];
-	leftSide[4] = bSplines.sump[0][2];
+//	leftSide[2] = bSplines.sump[0][0];
+//	leftSide[3] = bSplines.sump[0][1];
+//	leftSide[4] = bSplines.sump[0][2];
 	leftSide[5] = 0;
-	leftSide[6] = bSplines.sump[1][0];
-	leftSide[7] = bSplines.sump[1][1] + bSplines.sump[0][0];
-	leftSide[8] = bSplines.sump[1][2] + bSplines.sump[0][1];
-	leftSide[9] = bSplines.sump[0][2];
+//	leftSide[6] = bSplines.sump[1][0];
+//	leftSide[7] = bSplines.sump[1][1] + bSplines.sump[0][0];
+//	leftSide[8] = bSplines.sump[1][2] + bSplines.sump[0][1];
+//	leftSide[9] = bSplines.sump[0][2];
 
-	leftSide[len - 10] = bSplines.sump[2][0];
-	leftSide[len - 9] = bSplines.sump[1][0] + bSplines.sump[2][1];
-	leftSide[len - 8] = bSplines.sump[1][1] + bSplines.sump[2][2];
-	leftSide[len - 7] = bSplines.sump[1][2];
+//	leftSide[len - 10] = bSplines.sump[2][0];
+//	leftSide[len - 9] = bSplines.sump[1][0] + bSplines.sump[2][1];
+//	leftSide[len - 8] = bSplines.sump[1][1] + bSplines.sump[2][2];
+//	leftSide[len - 7] = bSplines.sump[1][2];
 	leftSide[len - 6] = 0;
-	leftSide[len - 5] = bSplines.sump[2][0];
-	leftSide[len - 4] = bSplines.sump[2][1];
-	leftSide[len - 3] = bSplines.sump[2][2];
+//	leftSide[len - 5] = bSplines.sump[2][0];
+//	leftSide[len - 4] = bSplines.sump[2][1];
+//	leftSide[len - 3] = bSplines.sump[2][2];
 	leftSide[len - 2] = 0;
 	leftSide[len - 1] = 0;
 	return leftSide;
@@ -374,13 +369,13 @@ number* generateBitmapLeftSide(BSpline2d bSplines, int elements)
 
 number getApprox(number x, number y, number* solution, int elements)
 {
-	double const elemSpan = 1.0 / (elements);
+	double const elemSpan = 1.0 / elements;
 	int ex = x * elements;
 	int ey = y * elements;
-	double ly = y - elemSpan * (ey - 1);
+	double ly = y - elemSpan * ey;
 	double ly1 = ly + elemSpan;
 	double ly2 = ly1 + elemSpan;
-	double lx = x - elements * (ex - 1);
+	double lx = x - elemSpan * ex;
 	double lx1 = lx + elemSpan;
 	double lx2 = lx1 + elemSpan;
 
@@ -403,12 +398,12 @@ number getApprox(number x, number y, number* solution, int elements)
 number* getBitmapApprox(number* solution, int elements, int resolution)
 {
 	number* approx = new number[resolution * resolution];
-	double span = 1L / resolution;
-	number x = -span;
+	double span = 1.0L / resolution;
+	number x = -span/2;
 	for (int i = 0; i < resolution; i++)
 	{
 		x += span;
-		number y = -span;
+		number y = -span/2;
 		for (int j = 0; j < resolution; j++)
 		{
 			y += span;
