@@ -11,8 +11,6 @@ struct BSpline2d
 	int size;
 	float sum;
 	double sump[3][3];
-//	BSpline2d(float * spline,int size) :spline(spline),size(size){}
-//	BSpline2d() :spline(0), size(0) {}
 };
 
 

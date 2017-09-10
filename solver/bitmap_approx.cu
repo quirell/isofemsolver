@@ -66,6 +66,7 @@ double splinePart(double *a,double *b,int size,int globsize,int globi,int globj,
 	}
 	return sum;
 }
+
 BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 {
 	int const pxPerElem = pixels / elements;
@@ -108,10 +109,9 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements)
 }
 
 ///(ceil(pixPerElem/threadsPerBlock)+1)+2
-__global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bitmap, float* dRightSide, float area, int pixPerElem, int bitmapSize, int memoryBlocks, int memBlockSize, int elements, int elements2, int idleThreads)
+__global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bitmap, float* dRightSide, int pixPerElem, int bitmapSize, int memoryBlocks, int memBlockSize, int elements, int elements2, int idleThreads)
 {
 	__shared__ float toSum[THREADS];
-	//__shared__ float toSum2[THREADS];//for reduction 2 times faster
 	extern __shared__ float toWrite[];
 
 	unsigned blockStart = blockIdx.x * blockDim.x;
@@ -131,7 +131,7 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 	}
 	int row = idx / bitmapSize;
 	int col = idx % bitmapSize;
-	int pxIdx = idx; // = row*bitmapSize + col
+	int pxIdx = idx;
 	float pixel = bitmap[pxIdx];
 	//compute summing indices
 	int elemStart = threadIdx.x - idx % pixPerElem;
@@ -172,7 +172,6 @@ __global__ void computeRightSide(float* dSplineArray, int toWriteSize, float* bi
 				atomicAdd(toWrite + elem, toSum[threadIdx.x]); //mozna zastapic atomc add dodając 3 razy wiecej pamieci toWrite i watki sumuja modulo, a potem sumuje sie te 3 bloki pamiec
 			}
 		}
-		//		__syncthreads();//?
 		int blockToWrite = (blockIdx.x % memoryBlocks) * memBlockSize;
 		int rowDisplacement = (pixPerElem * 2 - splineRowDispl);//bottom spline to first row, middle to middle, top spline to bottom row
 		int indexToWrite = blockStart / pixPerElem + 2 * (blockStart / pixPerElem / elements) + threadIdx.x;//consecutiveElement
@@ -226,18 +225,13 @@ number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpli
 	int elements2 = elements + 2;
 	Bitmap bitmap = readBmp(bpmPath,colors);
 	if (bitmap.height != bitmap.width || bitmap.width % elements != 0)
-		throw "Bitmap dimensions must be equal. Bitmap size must be divisible by float of elements without remainder.";
+		throw "Bitmap dimensions must be equal. Bitmap size must be divisible by number of elements without remainder.";
 	float* dBitmap = nullptr;
 	BSpline2d bSplines = generate2DSplineIntegrals(bitmap.width, elements);
 	//		BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements);
 	if (outBSpline != nullptr)
 		*outBSpline = bSplines;
-	//	BSpline2d bSplines = generateTestBSplineIntegrals(bitmap.width, elements); //FOR TESTING
-	//	for (int i = 0; i < bSplines.size; i++) {
-	//		for (int j = 0; j < bSplines.size; j++)
-	//			printf("%f ", bSplines.spline[i*bSplines.size+j]);
-	//		printf("\n");
-	//	}
+
 	float* dSplineArray;
 	ERRCHECK(cudaMemcpyToSymbol(dSplines, &bSplines, sizeof(BSpline2d)));
 	ERRCHECK(cudaMalloc(&dSplineArray, sizeof(float)*bSplines.size*bSplines.size));
@@ -256,15 +250,14 @@ number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpli
 	int totalThreads = BLOCKS(bitmap.width*bitmap.width) * THREADS;
 	int idleThreads = totalThreads - bitmap.width * bitmap.width;
 	float* rightSide = new float[elements2 * elements2];
-	//	double area = 1.0L / (elements * elements);
-	double area = 1; //FOR TESTING
+	double area = 1; 
 
 	ERRCHECK(cudaMalloc(&dRightSide, sizeof(float)*blockSize*floatOfMemoryBlocks))
 	ERRCHECK(cudaMemset(dRightSide, 0, sizeof(float)*blockSize*floatOfMemoryBlocks));
 	ERRCHECK(cudaDeviceSynchronize());
-	//	ERRCHECK(cudaMemcpy(dRightSide, rightSide, sizeof(float)*blockSize*floatOfMemoryBlocks, cudaMemcpyHostToDevice));
+
 	//	showMemoryConsumption();
-	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sizeof(float) * sharedMemorySize >>>(dSplineArray, sharedMemorySize, dBitmap, dRightSide, area, pixPerElem, bitmap.width, floatOfMemoryBlocks, blockSize, elements, elements2, idleThreads);
+	computeRightSide<<<BLOCKS(bitmap.width*bitmap.width), THREADS,sizeof(float) * sharedMemorySize >>>(dSplineArray, sharedMemorySize, dBitmap, dRightSide, pixPerElem, bitmap.width, floatOfMemoryBlocks, blockSize, elements, elements2, idleThreads);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
 	sumBlocks<<<BLOCKS(blockSize),THREADS>>>(dRightSide, floatOfMemoryBlocks, blockSize);
@@ -273,72 +266,12 @@ number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d* outBSpli
 	sumVerticalPxels<<<BLOCKS(elements2*elements2),THREADS>>>(dRightSide, dRightSide + blockSize, elements2, pixPerElem, area);
 	ERRCHECK(cudaGetLastError());
 	ERRCHECK(cudaDeviceSynchronize());
-	//	ERRCHECK(cudaMemcpy(rightSide,dRightSide, sizeof(float)*blockSize*floatOfMemoryBlocks, cudaMemcpyDeviceToHost)); FOR TESTING
+
 	ERRCHECK(cudaMemcpy(rightSide,dRightSide + blockSize, sizeof(float)*elements2*elements2, cudaMemcpyDeviceToHost));
 	ERRCHECK(cudaFree(dSplineArray));
 	ERRCHECK(cudaFree(dBitmap));
 	ERRCHECK(cudaFree(dRightSide));
-//	for (int i = 0; i < elements2; i++)
-//	{
-//		for (int j = 0; j < elements2; j++)
-//		{
-//			rightSide[i * elements2 + j] = 1;
-//		}
-//	}
 
-//	for (int i = 0; i < elements2; i++)
-//	{
-//		for (int j = 0; j < elements2; j++)
-//		{
-//			if(j < elements2/2)
-//				rightSide[i * elements2 + j] = 1;
-//			else
-//				rightSide[i * elements2 + j] = 0;
-//		}
-//	}
-//	for (int i = 0; i < elements2; i++)
-//	{
-//		for (int j = 0; j < elements2; j++)
-//		{
-//			if (i < elements2 / 2)
-//				rightSide[i * elements2 + j] = 1;
-//			else
-//				rightSide[i * elements2 + j] = 0;
-//		}
-//	}
-	//	for (int i = 0; i<elements2*pixPerElem; i++)
-	//	{
-	//		for(int k = 0;k<floatOfMemoryBlocks;k++)
-	//		{
-	//			for (int j = 0; j<elements2; j++)
-	//			{
-	//				printf("%.2f ", *(rightSide+k*blockSize  + i*elements2 + j));
-	//			}
-	//			printf("\n");
-	//		}
-	//		printf("--\n");
-	//	}
-	//	for (int i = 0; i<elements2; i++) FOR TESTING
-	//	{
-	//
-	//		for (int j = 0; j<elements2; j++)
-	//		{
-	//			printf("%.2f ", *(rightSide + blockSize + i*elements2 + j));
-	//		}
-	//		printf("\n");
-	//	}
-	//PRINT RESULT
-	//		for (int i = 0; i<elements2; i++)
-	//		{
-	//	
-	//			for (int j = 0; j<elements2; j++)
-	//			{
-	//				printf("%.2f ", *(rightSide + i*elements2 + j));
-	//			}
-	//			printf("\n");
-	//		}
-	//		printf("sum: %f\n", bSplines.sum*area);
-	//	return dRightSide;
 #ifdef DOUBLE_NUMBER
 	double* rightSideD = new double[elements2 * elements2];
 	for (int i = 0; i < elements2 * elements2; i++)
