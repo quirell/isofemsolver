@@ -20,3 +20,4 @@ void eliminateRoot(Node* dNodes, Properties props);
 void run(Node* dNodes, number* dLeftSide, Properties props, number* dRightSide, number* dRightSideMem);
 inline __device__ __host__ void assignParentToChildren(Node* nodes, int nodeIdx);
 __global__ void assignParentToChildrenLayer(Node* nodes, int startNode, int nodesCount);
+void mergeLeavesIntoArray(Properties props, number* dRightSideCopy, number* dRightSideMem, Node* dNodes);

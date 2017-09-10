@@ -383,23 +383,9 @@ number* generateBitmapLeftSide(BSpline2d bSplines, int elements)
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
-	//	leftSide[2] = bSplines.sump[0][0];
-	//	leftSide[3] = bSplines.sump[0][1];
-	//	leftSide[4] = bSplines.sump[0][2];
-	leftSide[5] = 0;
-	//	leftSide[6] = bSplines.sump[1][0];
-	//	leftSide[7] = bSplines.sump[1][1] + bSplines.sump[0][0];
-	//	leftSide[8] = bSplines.sump[1][2] + bSplines.sump[0][1];
-	//	leftSide[9] = bSplines.sump[0][2];
 
-	//	leftSide[len - 10] = bSplines.sump[2][0];
-	//	leftSide[len - 9] = bSplines.sump[1][0] + bSplines.sump[2][1];
-	//	leftSide[len - 8] = bSplines.sump[1][1] + bSplines.sump[2][2];
-	//	leftSide[len - 7] = bSplines.sump[1][2];
+	leftSide[5] = 0;
 	leftSide[len - 6] = 0;
-	//	leftSide[len - 5] = bSplines.sump[2][0];
-	//	leftSide[len - 4] = bSplines.sump[2][1];
-	//	leftSide[len - 3] = bSplines.sump[2][2];
 	leftSide[len - 2] = 0;
 	leftSide[len - 1] = 0;
 	return leftSide;
@@ -450,15 +436,5 @@ number* getBitmapApprox(number* solution, int elements, int resolution, char * s
 	}
 	if(storePath != nullptr)
 		saveArray(storePath, resolution, approx);
-//	printf("beginapprox\n");
-//	for (int i = 0; i < resolution; i++)
-//	{
-//		for (int j = 0; j < resolution; j++)
-//		{
-//			printf(PRINT_EXPR, approx[i * resolution + j]);
-//		}
-//		printf("\n");
-//	}
-//	printf("endapprox\n");
 	return approx;
 }

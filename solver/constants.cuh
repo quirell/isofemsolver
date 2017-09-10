@@ -17,7 +17,7 @@
 #define COLUMNS_PER_THREAD 1
 
 #define PRINT_EXPR "%.5f "
-//#define SUPRESS_PRINT
+#define SUPRESS_PRINT
 
 #define RED 0
 #define GREEN 1
@@ -42,7 +42,7 @@ struct Properties
 Properties getProperities(int leftCount, int rightCount);
 #define FLOAT_NUMBER
 extern __constant__ Properties dProps;
-#ifdef DOUBLE_NUMBER
+#ifdef DOUBLE_NUMBER //DO NOT USE calculating right side does not work with doubles, because there is no atomicAdd on doubles in CUDA
 typedef double number;
 #endif
 #ifdef FLOAT_NUMBER

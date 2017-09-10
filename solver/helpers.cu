@@ -6,11 +6,6 @@ void printAllNodes(Node* nodes, int nodesStart, Properties props)
 	int powerOfTwo = (int)log2(nodesStart + 1) + 1;
 	for (int i = nodesStart; i < props.heapNodes; i++)
 	{
-		//		if (i == powerOfTwo)
-		//		{
-		//			printf("level %d\n", powerOfTwo);
-		//			powerOfTwo <<= 1;
-		//		}
 		Node node = nodes[i];
 		for (int j = i >= props.remainingNodes ? 1 : 0; j < 6; j++)
 		{
@@ -43,7 +38,7 @@ void fillRightSide(number value, int row, number* rightSide, int rightCount)
 {
 	for (int i = 0; i < rightCount; i++)
 	{
-		rightSide[row * rightCount + i] = value*(i+1);
+		rightSide[row * rightCount + i] = value * (i + 1);
 	}
 }
 
@@ -128,7 +123,7 @@ void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, n
 	//	getch();
 }
 
-void printLeftAndRight(number * left,number * right,int size,int rsize)
+void printLeftAndRight(number* left, number* right, int size, int rsize)
 {
 #ifdef SUPRESS_PRINT
 	return;
@@ -158,7 +153,6 @@ void printLeftAndRight(number * left,number * right,int size,int rsize)
 		after--;
 	}
 	printf("END LEFT AND RIGHT\n");
-
 }
 
 void showMemoryConsumption()
@@ -173,28 +167,14 @@ void showMemoryConsumption()
 	printf("GPU memory usage: used = %f, free = %f MB, total = %f MB\n", used_db / 1024.0 / 1024.0, free_db / 1024.0 / 1024.0, total_db / 1024.0 / 1024.0);
 }
 
-//inline
-//cudaError_t checkCuda(cudaError_t result)
-//{
-//#if defined(DEBUG) || defined(_DEBUG)
-//	if (result != cudaSuccess) {
-//		fprintf(stderr, "CUDA Runtime Error: %sn", cudaGetErrorString(result));
-//		assert(result == cudaSuccess);
-//	}
-//#endif
-//	return result;
-//}
 
-
-//returns bitmap upside down and rotated right 90 
-//TODO cuts bitmap edges
-Bitmap readBmp(char* filename,float const * colors)
+Bitmap readBmp(char* filename, float const* colors)
 {
 	unsigned char* texels;
 	int width, height;
 	FILE* fd;
 	fd = fopen(filename, "rb");
-	if (fd == NULL)
+	if (fd == nullptr)
 	{
 		printf("Error: fopen failed\n");
 		throw "Bitmap opening failed";
@@ -202,14 +182,13 @@ Bitmap readBmp(char* filename,float const * colors)
 
 	unsigned char header[54];
 
-	// Read header
 	fread(header, sizeof(unsigned char), 54, fd);
 
-	// Capture dimensions
 	width = *(int*)&header[18];
 	height = *(int*)&header[22];
 	if (width != height)
-		throw "bitmap must be suqare size";
+		throw "bitmap must be suqare";
+
 	int padding = 0;
 
 	// Calculate padding
@@ -218,82 +197,36 @@ Bitmap readBmp(char* filename,float const * colors)
 		padding++;
 	}
 
-	// Compute new width, which includes padding
-	int widthnew = width * 3 + padding;
+	int paddedwidth = width * 3 + padding;
 
-	//	// Allocate memory to store image data (non-padded)
-	//	texels = (unsigned char *)malloc(width * height * 3 * sizeof(unsigned char));
-	//	if (texels == NULL)
-	//	{
-	//		printf("Error: Malloc failed\n");
-	//		return;
-	//	}
+	number* bitmap = new number[width * height];
 
-	number* bitmap = nullptr;
-	bitmap = new number[width * height];
+	unsigned char* bmprow = (unsigned char *)malloc(paddedwidth * sizeof(unsigned int));
 
-	// Allocate temporary memory to read widthnew size of data
-
-	unsigned char* data = (unsigned char *)malloc(widthnew * sizeof(unsigned int));
-	//input (bmp stores bitmap upside down)
-	// 3. 3 3 x x x
-	// 2. 2 2 y
-	// 1. 1 1 y
-	//output
-	// 1. 2. 3. y y y 
-	// 1  2  3 x 
-	// 1  2  3 x
-	// Read row by row of data and remove padded data.
-	if(colors == nullptr)
+	if (colors == nullptr)
 	{
 		colors = DEFAULT_COLORS;
 	}
-	for (int i = 0; i <height; i++)
+	//bitmap is stored upside down, so it must be read from bottom to top;
+	for (int i = height - 1; i >= 0; i--)
 	{
-		// Read widthnew length of data
-		fread(data, sizeof(unsigned char), widthnew, fd);
+		fread(bmprow, sizeof(unsigned char), paddedwidth, fd);
 
-		// Retain width length of data, and swizzle RB component.
-		// BMP stores in BGR format, my usecase needs RGB format
 		for (int j = 0; j < width * 3; j += 3)
 		{
-//			int index = j / 3 + width*i;// upside down
-			int index = (j / 3) * width + i; //rotated 90 right
-			bitmap[index] = (colors[RED] * data[j + 2] + colors[GREEN] * data[j + 1] + colors[BLUE] * data[j])/255.0L;
+			int index = j / 3 + width * i;
+			bitmap[index] = (colors[RED] * bmprow[j + 2] + colors[GREEN] * bmprow[j + 1] + colors[BLUE] * bmprow[j]) / 255.0L;
 		}
 	}
-	free(data);
+	free(bmprow);
 	fclose(fd);
-//	for (int i = 0; i < width; i++)
-//	{
-//		for (int j = 0; j < height; j++)
-//		{
-//			printf(PRINT_EXPR, bitmap[i*width + j]);
-//		}
-//		printf("\n");
-//	}
-//	printf("endbitmap\n");
 	return Bitmap(bitmap, width, height);
 }
 
-void saveArray(char * path,int size,float * data)
+void saveArray(char* path, int size, float* data)
 {
 	FILE* fd;
 	fd = fopen(path, "wb+");
-	fwrite(data, sizeof(float), size*size, fd);
+	fwrite(data, sizeof(float), size * size, fd);
 	fclose(fd);
-}
-
-number * cutSquare(number * input,int size,int targetCol)
-{
-	number * result = new number[size*targetCol];
-	for(int i = 0;i<size;i++)
-	{
-		for(int j = 0;j<targetCol;j++)
-		{
-			result[i*targetCol + j] = input[i*size + j]*255;
-		}
-	}
-	delete[] input;
-	return result;
 }
