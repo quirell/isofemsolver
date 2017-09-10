@@ -71,32 +71,34 @@ void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, n
 {
 	number* leftSide = new number[leftCount * 5];
 	number* rightSide = new number[rightCount * leftCount];
+
+
 	for (int i = 0; i < leftCount * 5; i += 5)
 	{
-		leftSide[i] = 0.09766;
-		leftSide[i + 1] = 0.85938;
-		leftSide[i + 2] = 2.08594;
-		leftSide[i + 3] = 0.85938;
-		leftSide[i + 4] = 0.09766;
+		leftSide[i] = 1;
+		leftSide[i + 1] = 2;
+		leftSide[i + 2] = 6;
+		leftSide[i + 3] = 2;
+		leftSide[i + 4] = 1;
 	}
 	leftSide[0] = 0;
 	leftSide[1] = 0;
-	leftSide[2] = 0.09766;
-	leftSide[3] = 0.42969;
-	leftSide[4] = 0.09766;
+	leftSide[2] = 6;
+	leftSide[3] = 2;
+	leftSide[4] = 1;
 	leftSide[5] = 0;
-	leftSide[6] = 0.42969;
-	leftSide[7] = 1.98828;
-	leftSide[8] = 0.85938;
-	leftSide[9] = 0.09766;
-	leftSide[leftCount * 5 - 10] = 0.09766;
-	leftSide[leftCount * 5 - 9] = 0.85938;
-	leftSide[leftCount * 5 - 8] = 1.98828;
-	leftSide[leftCount * 5 - 7] = 0.42969;
+	leftSide[6] = 2;
+	leftSide[7] = 6;
+	leftSide[8] = 2;
+	leftSide[9] = 1;
+	leftSide[leftCount * 5 - 10] = 1;
+	leftSide[leftCount * 5 - 9] = 6;
+	leftSide[leftCount * 5 - 8] = 2;
+	leftSide[leftCount * 5 - 7] = 1;
 	leftSide[leftCount * 5 - 6] = 0;
-	leftSide[leftCount * 5 - 5] = 0.09766;
-	leftSide[leftCount * 5 - 4] = 0.42969;
-	leftSide[leftCount * 5 - 3] = 0.09766;
+	leftSide[leftCount * 5 - 5] = 6;
+	leftSide[leftCount * 5 - 4] = 2;
+	leftSide[leftCount * 5 - 3] = 1;
 	leftSide[leftCount * 5 - 2] = 0;
 	leftSide[leftCount * 5 - 1] = 0;
 
@@ -128,6 +130,9 @@ void generateTestEquation(int leftCount, int rightCount, number** leftSidePtr, n
 
 void printLeftAndRight(number * left,number * right,int size,int rsize)
 {
+#ifdef SUPRESS_PRINT
+	return;
+#endif
 	if (rsize == 0)
 		rsize = size;
 	printf("LEFT AND RIGHT\n");
@@ -139,14 +144,14 @@ void printLeftAndRight(number * left,number * right,int size,int rsize)
 			printf("0 ");
 		for (int j = 0; j < 5; j++)
 		{
-			printf("%.5f ", left[i * 5 + j]);
+			printf(PRINT_EXPR, left[i * 5 + j]);
 		}
 		for (int i = 0; i < after; i++)
 			printf("0 ");
 		printf(" |  ");
 		for (int j = 0; j < rsize; j++)
 		{
-			printf("%.5f ", right[i * rsize + j]);
+			printf(PRINT_EXPR, right[i * rsize + j]);
 		}
 		printf("\n");
 		before++;
@@ -183,7 +188,7 @@ void showMemoryConsumption()
 
 //returns bitmap upside down and rotated right 90 
 //TODO cuts bitmap edges
-Bitmap readBmp(char* filename)
+Bitmap readBmp(char* filename,float const * colors)
 {
 	unsigned char* texels;
 	int width, height;
@@ -239,6 +244,10 @@ Bitmap readBmp(char* filename)
 	// 1  2  3 x 
 	// 1  2  3 x
 	// Read row by row of data and remove padded data.
+	if(colors == nullptr)
+	{
+		colors = DEFAULT_COLORS;
+	}
 	for (int i = 0; i <height; i++)
 	{
 		// Read widthnew length of data
@@ -248,23 +257,31 @@ Bitmap readBmp(char* filename)
 		// BMP stores in BGR format, my usecase needs RGB format
 		for (int j = 0; j < width * 3; j += 3)
 		{
-			//int index = j / 3 + width*i;// upside down
+//			int index = j / 3 + width*i;// upside down
 			int index = (j / 3) * width + i; //rotated 90 right
-			bitmap[index] = (0.299 * data[j + 2] + 0.587 * data[j + 1] + 0.114 * data[j])/255.0L;
+			bitmap[index] = (colors[RED] * data[j + 2] + colors[GREEN] * data[j + 1] + colors[BLUE] * data[j])/255.0L;
 		}
 	}
 	free(data);
 	fclose(fd);
-	for (int i = 0; i < width; i++)
-	{
-		for (int j = 0; j < height; j++)
-		{
-			printf("%f ", bitmap[i*width + j]);
-		}
-		printf("\n");
-	}
-	printf("endbitmap\n");
+//	for (int i = 0; i < width; i++)
+//	{
+//		for (int j = 0; j < height; j++)
+//		{
+//			printf(PRINT_EXPR, bitmap[i*width + j]);
+//		}
+//		printf("\n");
+//	}
+//	printf("endbitmap\n");
 	return Bitmap(bitmap, width, height);
+}
+
+void saveArray(char * path,int size,float * data)
+{
+	FILE* fd;
+	fd = fopen(path, "wb+");
+	fwrite(data, sizeof(float), size*size, fd);
+	fclose(fd);
 }
 
 number * cutSquare(number * input,int size,int targetCol)

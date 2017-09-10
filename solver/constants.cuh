@@ -16,6 +16,12 @@
 #define BLOCKS(N) (N+THREADS-1)/THREADS
 #define COLUMNS_PER_THREAD 1
 
+#define PRINT_EXPR "%.5f "
+//#define SUPRESS_PRINT
+
+#define RED 0
+#define GREEN 1
+#define BLUE 2
 struct Properties
 {
 	int leftCount;

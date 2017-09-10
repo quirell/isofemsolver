@@ -23,7 +23,7 @@ struct BitpamData
 };
 extern __constant__ BSpline2d dSplines;
 
-number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d * outBSpline = nullptr);
+number* generateBitmapRightSide(char* bpmPath, int elements, BSpline2d * outBSpline = nullptr, float * colors = nullptr);
 
 void measureGenBitmap(char* bmpPath, int elements, int iters);
 
@@ -33,4 +33,4 @@ BSpline2d generate2DSplineIntegrals(int pixels, int elements);
 
 number* generateBitmapLeftSide(BSpline2d bSplines, int elements);
 
-number * getBitmapApprox(number * solution, int elements, int resolution);
+number * getBitmapApprox(number * solution, int elements, int resolution,char * storePath = nullptr);

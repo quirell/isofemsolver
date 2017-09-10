@@ -467,7 +467,7 @@ __global__ void copyRightSideBack(Node* bottomNodes, number* rightSide)
 }
 
 // size-2 must be divisible by 3 without remainder
-void runComputing(const int size, int iters, char* bitmapPath = nullptr)
+void runComputing(const int size, int iters, char* bitmapPath = nullptr,char * storePath = nullptr,float * colors = nullptr)
 {
 	Properties props = getProperities(size, size);
 	ERRCHECK(cudaMemcpyToSymbol(dProps, &props, sizeof(Properties)));
@@ -497,7 +497,7 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		if (bitmapPath != nullptr)
 		{
 			BSpline2d bSplines;
-			rightSide = generateBitmapRightSide(bitmapPath, size - 2, &bSplines);
+			rightSide = generateBitmapRightSide(bitmapPath, size - 2, &bSplines,colors);
 //			rightSide = cutSquare(rightSide, size, props.rightCount);
 //			printf("begpoint\n");
 //			for (int i = 0; i < props.leftCount; i++)
@@ -526,14 +526,14 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		ERRCHECK(cudaMemcpy(dRightSideCopy + props.rightSize - 2 * props.rightCount, dRightSideMem + 4 * props.rightCount, sizeof(number) * 2 * props.rightCount, cudaMemcpyDeviceToDevice));
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
-		//		COPY RIGHT SIDE BACK END
+//		//		COPY RIGHT SIDE BACK END
 //		printf("midpoint\n");
 //		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
 //		for (int i = 0; i < props.leftCount; i++)
 //		{
 //			for (int j = 0; j < props.rightCount; j++)
 //			{
-//				printf("%.4f ", rightSide[i * props.rightCount + j]);
+//				printf(PRINT_EXPR, rightSide[i * props.rightCount + j]);
 //			}
 //			printf("\n");
 //		}
@@ -542,7 +542,7 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 //		printf("transpoint\n");
-		ERRCHECK(cudaMemcpy(rightSide, dRightSide, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
+//		ERRCHECK(cudaMemcpy(rightSide, dRightSide, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
 //		for (int i = 0; i < props.leftCount; i++)
 //		{
 //			for (int j = 0; j < props.rightCount; j++)
@@ -553,8 +553,9 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 //		}
 //		printf("transpointend\n");
 		//RUN FOR TRANSPOSED MATRIX
-//		ERRCHECK(cudaMemcpy(leftSide, dLeftSide, sizeof(number)*props.leftSize, cudaMemcpyDeviceToHost));
-		printLeftAndRight(leftSide, rightSide, size, props.rightCount);
+		ERRCHECK(cudaMemcpy(leftSide, dLeftSide, sizeof(number)*props.leftSize, cudaMemcpyDeviceToHost));
+//		printLeftAndRight(leftSide, rightSide, size, props.rightCount);
+		ERRCHECK(cudaMemset(dNodes, 0, sizeof(Node)*props.heapNodes));
 		run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 		//PUT RESULT INTO ONE ARRAY
 		copyRightSideBack << <BLOCKS(props.bottomNodes*props.rightCount), THREADS >> >(dNodes + props.remainingNodes, dRightSideCopy);
@@ -564,16 +565,16 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 		ERRCHECK(cudaGetLastError());
 		ERRCHECK(cudaDeviceSynchronize());
 		printf("endpoint\n");
-		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
-		for (int i = 0; i < props.leftCount; i++)
-		{
-			for (int j = 0; j < props.rightCount; j++)
-			{
-				printf("%.4f ", rightSide[i * props.rightCount + j]);
-			}
-			printf("\n");
-		}
-		printf("endpointend\n");
+//		ERRCHECK(cudaMemcpy(rightSide, dRightSideCopy, sizeof(number)*props.rightSize, cudaMemcpyDeviceToHost));
+//		for (int i = 0; i < props.leftCount; i++)
+//		{
+//			for (int j = 0; j < props.rightCount; j++)
+//			{
+//				printf(PRINT_EXPR, rightSide[i * props.rightCount + j]);
+//			}
+//			printf("\n");
+//		}
+//		printf("endpointend\n");
 		if (bitmapPath != nullptr)
 		{
 			delete[] rightSide;
@@ -594,7 +595,8 @@ void runComputing(const int size, int iters, char* bitmapPath = nullptr)
 	//	printf("\n");
 	number* solution = new number[size * size];
 	cudaMemcpy(solution, dRightSideCopy, sizeof(number) * props.rightSize, cudaMemcpyDeviceToHost);
-	getBitmapApprox(solution, size - 2, size-2);
+	int resolution = (size-2)*4;
+	getBitmapApprox(solution, size - 2, resolution,storePath);
 	//run(dNodes, dLeftSide, props, dRightSide, dRightSideMem);
 
 	//	ERRCHECK(cudaMemcpy(nodes, dNodes, sizeof(Node) * props.heapNodes, cudaMemcpyDeviceToHost));
@@ -619,9 +621,15 @@ int main()
 	//	readBmp("C:/Users/quirell/Pictures/Untitled.bmp");
 	//	generateBitmapRightSide("C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe15white.bmp",253);
 	//	measureGenBitmap("C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe20.bmp", 510, 1);
-	runComputing(14, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/4colors5px12.bmp");
-//	runComputing(11, 1);
-	//	runComputing(255, 10, "C:/Users/quirell/Desktop/magisterka/bitmapy/e253ppe40.bmp");
+//
+//	runComputing(146, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/test10px144.bmp", "C:/Users/quirell/Desktop/magisterka/bitmapy/outred.bmp",new float[3]{1,0,0});
+//	runComputing(146, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/test10px144.bmp", "C:/Users/quirell/Desktop/magisterka/bitmapy/outgreen.bmp", new float[3] {0, 1, 0});
+//	runComputing(146, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/test10px144.bmp", "C:/Users/quirell/Desktop/magisterka/bitmapy/outblue.bmp", new float[3] {0, 0, 1});
+//	runComputing(167, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/shibuya55px27.bmp", "C:/Users/quirell/Desktop/magisterka/util/outred.bmp",new float[3]{1,0,0});
+//	runComputing(167, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/shibuya55px27.bmp", "C:/Users/quirell/Desktop/magisterka/util/outgreen.bmp", new float[3] {0, 1, 0});
+//	runComputing(167, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/shibuya55px27.bmp", "C:/Users/quirell/Desktop/magisterka/util/outblue.bmp", new float[3] {0, 0, 1});
+//	runComputing(14, 1);
+		runComputing(11, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/2px9.bmp");
 	//	runComputing(255, 1, "C:/Users/quirell/Desktop/magisterka/bitmapy/e510ppe40.bmp");
 	//		runComputing(65, 100);
 	//		runComputing(128, 100);

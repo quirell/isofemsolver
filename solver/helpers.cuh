@@ -28,6 +28,8 @@ void showMemoryConsumption();
 
 void printRow(number * m, int start, int count);
 
+float const DEFAULT_COLORS[] = { 0.299,0.587,0.114 };
+
 struct Bitmap
 {
 	number * bitmap;
@@ -36,8 +38,10 @@ struct Bitmap
 	Bitmap(number * bmp, int w, int h) :bitmap(bmp), width(w), height(h) {}
 };
 
-Bitmap readBmp(char* filename);
+Bitmap readBmp(char* filename, float const * colors = nullptr);
 
 void printLeftAndRight(number * left, number * right, int size, int rsize = 0);
 
 number * cutSquare(number * input, int size, int targetCol);
+
+void saveArray(char * path, int size, float * data);
